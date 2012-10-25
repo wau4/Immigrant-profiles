@@ -1,0 +1,268 @@
+\documentclass{article}
+
+\usepackage[margin=.5in]{geometry}
+\usepackage[section]{placeins}  %% keeps output from floating into adjoining sections
+\usepackage{setspace} %for Hmisc::describe
+\usepackage{relsize}  %for Hmisc::describe
+\usepackage{fixltx2e}
+\usepackage{booktabs} % for table formatting
+
+\begin{document}
+
+
+<<setup, echo=FALSE , message=FALSE>>=
+opts_chunk$set( echo=FALSE, 
+               fig.align='center',
+               message=FALSE, comment="", tidy=TRUE, results='asis',warnings=FALSE)
+require(XLConnect)
+library(xtable)
+library(plyr)
+library(reshape)
+require(survival)
+require(ggplot2)
+require(scales)
+@
+
+\title{Arrivals from Haiti\\
+DNA data}
+\maketitle
+
+<<'load spreadsheet'>>=
+wb <-loadWorkbook("C:/Users/wau4/Desktop/haiti/haiti.xlsx")
+@
+
+\section{Arrivals from Haiti}
+<<'annual arrivals'>>=
+###Annual number of arrivals
+arrivals <- readWorksheet (wb, sheet = "arrivals", startRow=4, startCol=1, header = TRUE)
+#keep required rows (drop rows with NAs)
+arrivals = arrivals[(arrivals$Row.Labels %in% c("LPR", "Refugee/Asylee", "Grand Total")),]
+
+#remove columns with totals
+arrivals = arrivals[,!(names(arrivals) %in% "Grand.Total"),]
+#remove row with totals
+arrivals = arrivals[(arrivals$Row.Labels %in% "Grand Total"),]
+
+#reshape data
+arrivals.melt = melt.data.frame(arrivals, variable_name="year", na.rm=TRUE)
+#rename year (remove 'calendar')
+arrivals.melt$year = substr(arrivals.melt$year, 10,13)
+
+#Rename
+arrivals.melt$year.factor=factor(arrivals.melt$year)
+@
+
+<<'annual arrivals chart',fig.cap="Annual number of arrivals from Haiti">>=
+p1 <- ggplot(data=arrivals.melt, aes(x=year.factor, y=value)) + geom_bar(colour="grey", width=.5) +
+  xlab("Year of arrival in the US") + ylab("Number")  + opts(title="Annual number of arrivals")
+@
+
+<<'Annual arrivals by immigration status'>>=
+arrivals <- readWorksheet (wb, sheet = "arrivals", startRow=4, startCol=1, header = TRUE)
+
+#keep required rows (drop rows with NAs)
+arrivals = arrivals[(arrivals$Row.Labels %in% c("LPR", "Refugee/Asylee", "Grand Total")),]
+
+#remove columns with totals
+arrivals = arrivals[,!(names(arrivals) %in% "Grand.Total"),]
+#remove row with totals
+arrivals = arrivals[!(arrivals$Row.Labels %in% "Grand Total"),]
+
+#reshape data
+require(reshape)
+arrivals.melt = melt.data.frame(arrivals, variable_name="year", na.rm=TRUE)
+#rename year (remove 'calendar')
+arrivals.melt$year = substr(arrivals.melt$year, 10,13)
+
+#Rename
+arrivals.melt$year.factor=factor(arrivals.melt$year)
+arrivals.melt$status=factor(arrivals.melt$Row.Labels)
+@
+
+<<'annual arrivals by immigration status chart'>>=
+p2 <- ggplot(data=arrivals.melt, aes(x=year.factor, y=value)) + geom_bar(aes(fill=status), position="dodge") +
+  xlab("Year of arrival in the US") + ylab("Number") + opts(title="Annual number of arrivals by immigration status") + opts(legend.justification=c(1,1), legend.position=c(1,1))
+@
+
+<<'Cumulative arrivals'>>=
+arrivals <- readWorksheet (wb, sheet = "arrivals", startRow=4, startCol=1, header = TRUE)
+
+#keep required rows (drop rows with NAs)
+arrivals = arrivals[(arrivals$Row.Labels %in% c("LPR", "Refugee/Asylee", "Grand Total")),]
+
+#remove columns with totals
+arrivals = arrivals[,!(names(arrivals) %in% "Grand.Total"),]
+#remove row with totals
+arrivals = arrivals[!(arrivals$Row.Labels %in% "Grand Total"),]
+
+#reshape data
+require(reshape)
+arrivals.melt = melt.data.frame(arrivals, variable_name="year", na.rm=TRUE)
+#rename year (remove 'calendar')
+arrivals.melt$year = substr(arrivals.melt$year, 10,13)
+
+#calculate cumulative sums
+arrivals.sum = ddply(arrivals.melt, .(status=Row.Labels), summarize, year=I(year), total=cumsum(value))
+
+#Rename
+arrivalstatus = arrivals.sum
+
+#Unfolding plot function
+#data set of the last observation (for points and/or labels)
+arrivalstatus$year.factor=factor(arrivalstatus$year)
+last.point = ddply(arrivalstatus, .(status), function(x) x[c(nrow(x)),])
+@
+
+<<'cumulative arrivals chart',fig.cap="Arrivals from Haiti since 2006">>=
+p3 <- ggplot(data=arrivalstatus, aes(x=year.factor, y=total, group=status)) + 
+  theme_bw() +
+  geom_line(size=.75, color="grey") +
+  geom_point(data=last.point, aes(x=year.factor, y=total), size=4, color="grey") +
+  geom_text(data=last.point, aes(label=status), hjust = 1, vjust = 0, size = 4) +
+  scale_y_continuous ("Cumulative Arrivals") +
+  scale_x_discrete ("Year of arrival")  + opts(title="Cumulative number of arrivals by immigration status")
+@
+
+<<'arrivals grid',fig.width=15,fig.height=15>>=
+require(gridExtra)
+grid.arrange(p1, p2, p3, nrow=2, ncol=2)
+@
+
+
+\section{Age and gender distribution of arrivals}
+<<'age distribution'>>= 
+age <- readWorksheet (wb, sheet = "age", startRow=4, startCol=1, header = TRUE)
+
+#remove columns with totals
+age = age[,!(names(age) %in% "Grand.Total"),]
+#remove row with totals
+age = age[!(age$Row.Labels %in% c("Grand Total", "Unknown")),]
+
+#Reshape data
+age.melt = melt.data.frame(age, variable_name="year", na.rm=TRUE)
+#Rename years (remove 'calendar')
+age.melt$year=substr(age.melt$year, 10,13)
+age.melt$year.factor=factor(age.melt$year)
+age.melt$age=factor(age.melt$Row.Labels)
+age.melt$number=age.melt$value
+@
+
+<<'plot age distribution'>>=
+page <- ggplot(data=age.melt, aes(x=year.factor, y=number)) + geom_bar(aes(fill=age), position="dodge") +
+  xlab("Year of arrival in the US") + ylab("Number") + opts(title="Annual number of arrivals, by age") +
+  opts(legend.justification=c(1,1), legend.position=c(1,1))
+@
+
+<<'sex distribution'>>=
+sex <- readWorksheet (wb, sheet = "gender", startRow=4, startCol=1, header = TRUE)
+
+#remove columns with totals
+sex = sex[,!(names(sex) %in% "Grand.Total"),]
+#remove row with totals
+sex = sex[!(sex$Row.Labels %in% "Grand Total"),]
+
+#Reshape data
+sex.melt = melt.data.frame(sex, variable_name="year", na.rm=TRUE)
+#Rename years (remove 'calendar')
+sex.melt$year=substr(sex.melt$year, 10,13)
+sex.melt$year.factor=factor(sex.melt$year)
+sex.melt$sex=factor(sex.melt$Row.Labels)
+sex.melt$number=sex.melt$value
+@
+
+<<'sex distribution plot'>>=
+psex <- ggplot(data=sex.melt, aes(x=year.factor, y=number)) + geom_bar(aes(fill=sex), position="dodge") +
+  xlab("Year of arrival in the US") + ylab("Number") + opts(title="Annual number of arrivals, by sex") +
+  opts(legend.justification=c(1,1), legend.position=c(1,1))
+@
+
+<<'age and sex grid',fig.width=6,fig.height=8>>=
+require(gridExtra)
+grid.arrange(page, psex, nrow=2, ncol=1)
+@
+
+\section{TB TIs (1991 VS 2007) and TB class conditions}
+
+<<'tb ti>>=
+tbti <- readWorksheet (wb, sheet = "tbti", startRow=4, startCol=1, header = TRUE)
+
+#remove columns with totals
+tbti = tbti[,!(names(tbti) %in% "Grand.Total"),]
+#remove row with totals
+tbti = tbti[!(tbti$Row.Labels %in% "Grand Total"),]
+
+#Reshape data
+tbti.melt = melt.data.frame(tbti, variable_name="year", na.rm=TRUE)
+#Rename years (remove 'calendar')
+tbti.melt$year=substr(tbti.melt$year, 10,13)
+tbti.melt$year.factor=factor(tbti.melt$year)
+tbti.melt$TBTI=factor(tbti.melt$Row.Labels)
+tbti.melt$number=tbti.melt$value
+@
+
+<<'tb ti plot'>>=
+pti <- ggplot(data=tbti.melt, aes(x=year.factor, y=number)) + geom_bar(aes(fill=TBTI), position="dodge") +
+  xlab("Year of arrival in the US") + ylab("Number") + opts(title="Annual number of arrivals by the TB TIs used \nduring overseas medical screening") +
+  opts(legend.justification=c(1,1), legend.position=c(1,1))
+@
+
+<<'Cumulative arrivals by TB TIs'>>=
+tbti <- readWorksheet (wb, sheet = "tbti", startRow=4, startCol=1, header = TRUE)
+
+#remove columns with totals
+tbti = tbti[,!(names(tbti) %in% "Grand.Total"),]
+#remove row with totals
+tbti = tbti[!(tbti$Row.Labels %in% "Grand Total"),]
+
+#Reshape data
+tbti.melt = melt.data.frame(tbti, variable_name="year", na.rm=TRUE)
+#Rename years (remove 'calendar')
+tbti.melt$year=substr(tbti.melt$year, 10,13)
+tbti.melt$year.factor=factor(tbti.melt$year)
+tbti.melt$TBTI=factor(tbti.melt$Row.Labels)
+tbti.melt$number=tbti.melt$value
+
+#calculate cumulative sums
+tbti.sum = ddply(tbti.melt, .(TBTI), summarize, year=I(year.factor), total=cumsum(value))
+
+last.point = ddply(tbti.sum, .(TBTI), function(x) x[c(nrow(x)),])
+@
+
+<<'Cumulative arrivals by TB TIs plot'>>=
+pticum <- ggplot(data=tbti.sum, aes(x=year, y=total, group=TBTI)) + 
+  theme_bw() +
+  geom_line(size=.75, color="grey") +
+  geom_point(data=last.point, aes(x=year, y=total), size=4, color="grey") +
+  geom_text(data=last.point, aes(label=TBTI), hjust = 1, vjust = 0, size = 4) +
+  scale_y_continuous ("Cumulative Arrivals from Haiti, n") +
+  scale_x_discrete ("Year of arrival") + opts(title="Cumulative number of arrivals by TB TIs used \nduring overseas medical screening")
+@
+
+<<'TB conditions among arrivals from Haiti'>>=
+tbclasses <- readWorksheet (wb, sheet = "tbclasses", startRow=5, startCol=1, header = TRUE)
+#remove columns with totals
+tbclasses = tbclasses[,!(names(tbclasses) %in% "Grand.Total"),]
+#keep the followings rows
+tbclasses = tbclasses[(tbclasses$Row.Labels %in% c("Class B TB", "Class B1 TB", "Class B2 TB", "Class B3 TB")),]
+
+#Reshape data
+tbclasses.melt = melt.data.frame(tbclasses, variable_name="year", na.rm=TRUE)
+#Rename years (remove 'calendar')
+tbclasses.melt$year=substr(tbclasses.melt$year, 10,13)
+tbclasses.melt$year.factor=factor(tbclasses.melt$year)
+tbclasses.melt$TBClass=factor(tbclasses.melt$Row.Labels)
+tbclasses.melt$number=tbclasses.melt$value
+@
+
+<<'TB conditions among arrivals from Haiti plot'>>=
+ptbclass <- ggplot(data=tbclasses.melt, aes(x=year.factor, y=number)) + geom_bar(aes(fill=TBClass), position="dodge") +
+  xlab("Year of arrival in the US") + ylab("Number") + opts(title="Annual number of arrivals by the TB class conditions \nfrom overseas medical screening") +
+  opts(legend.justification=c(0,1), legend.position=c(0,1))
+@
+
+<<'TB grid',fig.width=15,fig.height=15>>=
+require(gridExtra)
+grid.arrange(pti, pticum, ptbclass, nrow=2, ncol=2)
+@
+
+\end{document}
