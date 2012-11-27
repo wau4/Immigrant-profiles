@@ -1,0 +1,135 @@
+\documentclass{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{setspace} %for Hmisc::describe
+\usepackage{relsize}  %for Hmisc::describe
+\usepackage[section]{placeins}  %% keeps output from floating into adjoining sections
+\usepackage{fixltx2e}
+\usepackage{booktabs} % for table formatting
+\usepackage{rotating}
+ 
+<<"setup", echo=FALSE , message=FALSE, cache=FALSE>>=
+opts_chunk$set( echo=FALSE, cache=FALSE, results='asis',
+                fig.align='left', fig.show='hold', fig.width=7, fig.height=7,
+                fig.path='images',message=FALSE, comment="", tidy=TRUE)
+options(replace.assign=TRUE,width=90)
+if (!exists('.title')) .title = 'Immigrant, Refugee, and Migrant Health Branch'
+if (!exists('.author')) .author = Sys.info()['user']
+@
+
+<<"title", echo=FALSE, results=hide, message=FALSE, cache=FALSE>>=
+.title= 'Burmese Diaspora'
+.author = 'John Painter'
+@
+
+\begin{document}
+\title{\Sexpr{.title}}
+\author{\Sexpr{.author}}
+
+\maketitle
+\tableofcontents  % inserts 'Table of contents' 
+\listoftables  % inserts 'List of Tables' (numbers and captions)
+\listoffigures % inserts 'List of Figures' (numbers and captions)
+
+\section{Motivation}
+
+Refugees from Burma migrated to several regional countries and, for some, ultimately resettled in the United States.  This monograph describes the movement from Burma(Myanmar) to the country of asylum, to resettlement in the United States.  
+Burmese refugees are ethnically diverse, representing several distinct languages and regions of Burma.  We wondered if there were important epidemiologic differences between the Burmese refuugees that may be due to ethnicity or the country of asylum.
+
+\section{Data Sources}
+
+Data on the gender, age, primary language, destination state (in United States) and location prior to resettlement were obtained from the U.S. Department of State Worldwide Refugee Administration and Processing System (WRAPS).  Data presented represent those that have been resettled to the United States only.  Those that have not been resettled or that were resettled to other countries are not included.
+
+<<"import-data", warning=FALSE>>=
+#Load spreadsheet
+library(XLConnect)
+# wb <- loadWorkbook("//cdc/project/ccid_ncpdcid_dgmq/IRMH/_Epi Team/DNA/BurmeseDNA.xlsx")
+wb <- loadWorkbook("c:/users/bzp3/desktop/DNA/BurmeseDNA.xlsx")
+dna <- readWorksheet(wb, sheet = "dna", startRow=5, startCol=1, header = TRUE)
+
+# str(dna)
+
+#total
+total = with(dna, sum(Total))
+T = prettyNum(total, big.mark = ",", format="d")
+@
+
+\section{Demographics}
+
+From .... to ....., \Sexpr{T} Burmese refugees have been resettled to the United States.  
+
+<<"location">>=
+library(xtable)
+xt = with(dna, xtabs(Total ~ Location))
+xt = prop.table(xt)
+xtable(as.data.frame(xt), caption="Location of Refugees Before Resettlment")
+
+xt = with(dna, xtabs(Total ~ Gender))
+xt = prop.table(xt)
+xtable(as.data.frame(xt), caption="Gender")
+
+age.grp = cut(as.numeric(dna$Age.At.Arrival), breaks=c(0,2,15,25,35,45,55,65,75,85), include.lowest=TRUE )
+xt = with(dna, xtabs(Total ~ age.grp))
+xt = prop.table(xt)
+xtable(as.data.frame(xt), caption="Age")
+
+@
+
+
+\section{Primary Languages}
+
+Refugees reported \Sexpr{length(xt)} different primary languages.  To approximate the home state for Burmese refugees, we classified the languages into one of the Burmese states.  
+
+<<"languages", eval=TRUE>>=
+xt = with(dna, xtabs(Total ~ Native.Language ))
+xt = prop.table(xt)
+xtable(as.data.frame(xt), caption="Reported Native Languages of Burmese Refugees", include.rownamess=FALSE)
+
+state = c("Kayin", "Kayah","Chin", "Kachin", "Mon","Rakhaing", "Shan")
+chin = c("CHIN", "Lai", "Tedim", "CHIN LAI", "Falam", "Zo", "Zophei","Chin – Falam", "Chin – Mizo", "Zotung", "Chin - Zokhua", "Chin - Matu", "Chin - Zaniat", "Lautu", "Chin - Senthang", "Mara", "Matu", "Chin – Mindat", "Chin – Siyin", "Hakh - Chin Burmese dialect", "Chin - Khumi", "Siyin")
+kachin = c("Kachin")
+karen = c("Sgaw Karen", "Karen", "Pwo Karen")
+karenni = c("Kayah")
+mon = c("Burmese", "Mon")
+rohinga = c("Arakan", "Royhingya")
+shan = c("Shan")
+other = c("Other")
+
+# Classify language as state
+dna=within(dna,{
+    burma.state='Other'
+    burma.state[Native.Language %in% chin | Native.Language %in% glob2rx("Chin*")]='Chin'
+    burma.state[Native.Language %in% kachin]='Kachin'
+    burma.state[Native.Language %in% karen]='Kayin'
+    burma.state[Native.Language %in% karenni]='Kayah'
+    burma.state[Native.Language %in% mon]='Mon'
+    burma.state[Native.Language %in% rohinga]='Rakhaing'
+    burma.state[Native.Language %in% shan]='Shan'
+})
+
+# to create language table, make language vectors all the same lenght as the longest one (chin)
+fill = function(x){x = c(x, rep(NA,length(chin) - length(x)))}
+kachin = fill(kachin)
+karen = fill(karen)
+karenni = fill(karenni)
+mon = fill(mon)
+rohinga = fill(rohinga)
+shan = fill(shan)
+other = unique(dna[dna$burma.state == 'Other', "Native.Language"])
+other = fill(other)
+
+language.table = data.frame(chin, kachin, karen, karenni, mon, rohinga, shan, other)
+colnames(language.table) = c("Chin", "Kachin", "Kayin", "Kayah", "Mon", "Rakhaing", "Shan", "Other")
+
+library(xtable)
+print( xtable(language.table, caption="Suggsted Classification of States by Native Language"), include.rownamess=FALSE)
+
+xt = with(dna, xtabs(Total ~ Native.Language + burma.state))
+xtable(as.data.frame(xt), caption="Frequencies of Native Languages and Burmese State", include.rownamess=FALSE)
+
+xt = with(dna, xtabs(Total ~  burma.state))
+xtable(as.data.frame(xt), caption="Frequencies of Burmese State", include.rownamess=FALSE)
+
+@
+
+\end{document}
