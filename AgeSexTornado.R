@@ -33,68 +33,76 @@ ggplot(tornado, aes(x=age.group, y=EDN, fill=Sex)) +
      xlab("Age") + theme(axis.title.y = element_text(face="bold", size=20)) +
      ylab("Population") + theme(axis.title.x = element_text(face="bold", size=20)) 
 
-# text label in bar--refugee only
-t = tornado[tornado$Visa.Type %in% "Refugee/Asylee",]
-library(plyr)
-t.sum = ddply(t, .(age.group), summarise, 
-              max.edn=max(abs(EDN)), 
-              percent.male = round( sum(EDN * (Sex %in% "M"))*100/sum(abs(EDN)) ),
-              total = sum( abs(EDN) )
-                   )
-t = merge(t, t.sum, all.x = TRUE)
-t[t$Sex %in% "F", "percent.male"] = NA
-t$percent.total = round( t$total *100  / sum(abs(t$EDN)) ) 
 
-library(scales)
-ggplot(t, aes(x=age.group, y=EDN, fill=Sex)) + 
-     geom_bar(stat="identity", position="identity", width = .95) + 
-     geom_text(aes(label = ifelse(Sex %in% "F",
-                                  paste(" ", percent.total, "% ", 
-                                        sep=""),
-                                  ""),
-                   size=t$max.edn,
-                   y=EDN),
-               hjust=0,
-               vjust=0,
-               color="white") +
-     geom_text(aes(label = ifelse(Sex %in% "F", "  total", ""),
-                   size=t$max.edn/2,
-                   y=EDN),
-               hjust=0,
-               vjust=1,
-               color="white") +
-     geom_text(aes(label = ifelse(!is.na(percent.male),
-                                  paste(percent.male, "% ", sep=""),
-                                  ""
-                                  ),
-                   hjust = 1,
-                   vjust=0 ,
-                   lineheight=1 ,
-                   y=EDN,
-                   size=t$max.edn/2
-                   ), 
-               color="black") +
-     geom_text(aes(label = ifelse(!is.na(percent.male),
-                                  "male  ",
-                                  ""
-                                  ),
-                   hjust = 1,
-                   vjust= 1,
-                   y=EDN,
-                   size=t$max.edn/4
-                   ), 
-               color="black") +
-     scale_size_continuous(range=c(2,15), guide=FALSE) + 
-     scale_y_continuous(label=comma) + #  comma format for populations
-     scale_fill_hue(l=40) + 
-     xlab("Age") +
-     ylab("Population") + 
-     coord_flip() + 
-     theme( axis.title.x = element_text(face="bold", size=20),
-            axis.title.y = element_text(face="bold", size=20),
-            axis.text.x = element_text(face="bold", size=18),
-            axis.text.y = element_text(face="bold", size=18 )
-            ) 
+# text label in bar
+##-- select one visa type first (e.g. refugee only)
+     t = tornado[tornado$Visa.Type %in% "Refugee/Asylee",]
+
+     # calculate percent total and percent males.  
+     library(plyr)
+     t.sum = ddply(t, .(age.group), summarise, 
+                   max.edn=max(abs(EDN)), 
+                   percent.male = round( sum(EDN * (Sex %in% "M"))*100/sum(abs(EDN)) ),
+                   total = sum( abs(EDN) )
+                        )
+     t = merge(t, t.sum, all.x = TRUE)
+     t$percent.total = round( t$total *100  / sum(abs(t$EDN)) ) 
+
+     library(scales)
+     ggplot(t, aes(x=age.group, y=EDN, fill=Sex)) + 
+          geom_bar(stat="identity", position="identity", width = .95) + 
+          geom_text(aes(label = ifelse(Sex %in% "F", 
+                                       # show value on female side only
+                                       paste(" ", percent.total, "% ", 
+                                             sep=""),
+                                       ""),
+                        size=t$max.edn,
+                        y=EDN),
+                    hjust=0,
+                    vjust=0,
+                    color="white") +
+          geom_text(aes(label = ifelse(Sex %in% "F",
+                                       # show value on female side only
+                                       "  total", ""),
+                        size=t$max.edn/2,
+                        y=EDN),
+                    hjust=0,
+                    vjust=1,
+                    color="white") +
+          geom_text(aes(label = ifelse(Sex %in% "M", 
+                                       # show value on male side only
+                                       paste(percent.male, "% ", sep=""),
+                                       ""
+                                       ),
+                        hjust = 1,
+                        vjust=0 ,
+                        lineheight=1 ,
+                        y=EDN,
+                        size=t$max.edn/2
+                        ), 
+                    color="black") +
+          geom_text(aes(label = ifelse(Sex %in% "M", 
+                                       # show value on male side only
+                                       "male  ",
+                                       ""
+                                       ),
+                        hjust = 1,
+                        vjust= 1,
+                        y=EDN,
+                        size=t$max.edn/4
+                        ), 
+                    color="black") +
+          scale_size_continuous(range=c(2,15), guide=FALSE) + 
+          scale_y_continuous(label=comma) + #  comma format for populations
+          scale_fill_hue(l=40) + 
+          xlab("Age") +
+          ylab("Population") + 
+          coord_flip() + 
+          theme( axis.title.x = element_text(face="bold", size=20),
+                 axis.title.y = element_text(face="bold", size=20),
+                 axis.text.x = element_text(face="bold", size=18),
+                 axis.text.y = element_text(face="bold", size=18 )
+                 ) 
 
 # Facet by visa type
 ggplot(tornado, aes(x=age.group, y=EDN, fill=Sex)) + 
