@@ -76,6 +76,7 @@ ggplot(t, aes(x=age.group, y=EDN, fill=Sex)) +
                color="black") +
      geom_text(aes(label = ifelse(!is.na(percent.male),
                                   "male  ",
+                                  "male",
                                   ""
                                   ),
                    hjust = 1,
