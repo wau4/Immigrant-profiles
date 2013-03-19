@@ -10,7 +10,8 @@ countryArrivals <- function(country = "Vietnam",
   center <- 275 # positive values only - US centered view is 260
   
 # shift coordinates to recenter great circles
-  gcircles$long.recenter <-  ifelse(gcircles$long  < center - 180 , gcircles$long + 360, gcircles$long) 
+  gcircles$long.recenter <-  ifelse(gcircles$long  < center - 180 , 
+                                    gcircles$long + 360, gcircles$long) 
   
 visa.rows = which( gcircles$AlienType == visa) # test: use group instead of group.regroup
 country.rows = which( gcircles$Country == country) # test: use group instead of group.regroup

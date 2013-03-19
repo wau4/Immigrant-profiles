@@ -1,75 +1,97 @@
 
-# options(java.parameters = "-Xmx4g" ) # May run out of memory allocated for java (default is .5Gb)
-# gc()  # clear memory--garbage collector
+# === to avoid 'out of memory' error, restart R session (session menu) and then.... 
+# options(java.parameters = "-Xmx4g")
+# xlcMemoryReport()
+# xlcFreeMemory()
 
 library(XLConnect)
-wb <-loadWorkbook("C:/Users/bzp3/Desktop/dna/Immigrant-profiles/immigrant-profile.xlsx")
 
 ###Annual number of arrivals
-sex.age <- readWorksheet (wb, sheet = "VisaExamAgeSexEDN-DHS", startRow=5, startCol=1, header = TRUE)
+wb = "C:/Users/bzp3/Desktop/dna/Immigrant-profiles/immigrant-profile.xlsx"
+arrivals.all = readWorksheetFromFile(wb, sheet = "VisaExamAgeSexEDN-DHS", 
+                                startRow=5, header = TRUE)
+head(arrivals)
+save(arrivals, file = "arrivals.rda")
 
-# tornado plot
-library(ggplot2)
+# select Country and Year
+     .country = "India"
+     if ( !is.na(.country)){
+          arrivals = arrivals.all[arrivals.all$Country.Name %in% toupper(.country),]
+     }
 
-# country = "Haiti"
+     .year = 2010
+     if ( !is.na(.year)){
+          arrivals = arrivals[arrivals$Year %in% paste("Calendar", .year),]
+     } 
 
-tornado = sex.age[sex.age$Year == "Calendar 2010" & sex.age$Sex %in% c("F","M"),]
-tornado$Sex = factor(tornado$Sex)
-tornado$EDN = ifelse(tornado$Sex %in% 'F', -1*tornado$EDN, tornado$EDN)  # convert female totals to negative numbers
-tornado$CYLPR = ifelse(tornado$Sex %in% 'F', -1*tornado$CYLPR, tornado$CYLPR)  # convert female totals to negative numbers
-
-# remove unwanted visa categories
-tornado = tornado[which(!tornado$Visa.Type %in% c("VISITOR","Nonimmigrant", "Unknown", "Other")),] # remove visitors 
-# tornado = tornado[!is.na(tornado$Visa.Type),]
+# visa categories
+     table(arrivals$Visa.Type)
+     
+     .visa = c("LPR","Refugee/Asylee")
+     if ( !is.na(.year)){
+          arrivals = arrivals[arrivals$Visa.Type %in% .visa,]
+     }
 
 # reverse order of age groups
-tornado$age.group = factor(tornado$Age.Group4.DHS.Data, levels = rev(unique(tornado$Age.Group4.DHS.Data))) 
+     arrivals$age.group = factor(arrivals$Age.Group4.DHS.Data, 
+                                 levels = rev(unique(arrivals$Age.Group4.DHS.Data))
+                                 ) 
 
-# EDN bars
-ggplot(tornado, aes(x=age.group, y=EDN, fill=Sex)) + 
-     geom_bar(stat="identity", position="identity") +  # error if stat= not included.  don't know why?!
-     coord_flip() + 
-     scale_fill_hue(l=40) + 
-     xlab("Age") + theme(axis.title.y = element_text(face="bold", size=20)) +
-     ylab("Population") + theme(axis.title.x = element_text(face="bold", size=20)) 
-
-
-# text label in bar
-##-- select one visa type first (e.g. refugee only)
-     t = tornado[tornado$Visa.Type %in% "Refugee/Asylee",]
+# combine LPR and EDN counts
+     arrivals$count = ifelse(is.na(arrivals$CYLPR),
+                             arrivals$EDN,
+                             arrivals$CYLPR)
+# text label for bars
+      t = arrivals
 
      # calculate percent total and percent males.  
      library(plyr)
-     t.sum = ddply(t, .(age.group), summarise, 
-                   max.edn=max(abs(EDN)), 
-                   percent.male = round( sum(EDN * (Sex %in% "M"))*100/sum(abs(EDN)) ),
-                   total = sum( abs(EDN) )
+     t.sum = ddply(t, .(Visa.Type, age.group), summarise, 
+                   max.count=max(abs(count)), # for sizing of text
+                   percent.male = round( 
+                        sum(count * (Sex %in% "M"))*100/sum(abs(count)) 
+                        ),
+                   total = sum( abs(count) )
                         )
      t = merge(t, t.sum, all.x = TRUE)
-     t$percent.total = round( t$total *100  / sum(abs(t$EDN)) ) 
+     t$percent.total = round( t$total *100  / sum(abs(t$count)) ) 
+     t = ddply(t, .(Visa.Type), transform, 
+                visa.percent = round(100*abs(total)/sum(abs(count))) 
+                )
+# remove 'unknown' age group
+     t = t[!t$age.group == "Unknown",]
 
-     library(scales)
-     ggplot(t, aes(x=age.group, y=EDN, fill=Sex)) + 
+# organize sex data
+     t$Sex = factor(t$Sex)
+     # convert female totals to negative numbers
+     t$count = ifelse(t$Sex %in% 'F', -1*t$count, 
+                             t$count)  
+     
+# tornado plot
+library(ggplot2)
+library(scales)
+
+     ggTornado = 
+     ggplot(t, aes(x=age.group, y=count, fill=Sex)) + 
           geom_bar(stat="identity", position="identity", width = .95) + 
-          geom_text(aes(label = ifelse(Sex %in% "F", 
+          geom_text(aes(label = ifelse(Sex %in% "F" & visa.percent>9, 
                                        # show value on female side only
-                                       paste(" ", percent.total, "% ", 
-                                             sep=""),
+                                       paste(" ", visa.percent, "% ", sep=""),
                                        ""),
-                        size=t$max.edn,
-                        y=EDN),
+                        size=t$max.count,
+                        y=count),
                     hjust=0,
                     vjust=0,
                     color="white") +
-          geom_text(aes(label = ifelse(Sex %in% "F",
+          geom_text(aes(label = ifelse(Sex %in% "F" & visa.percent>9,
                                        # show value on female side only
                                        "  total", ""),
-                        size=t$max.edn/2,
-                        y=EDN),
+                        size=t$max.count/2,
+                        y=count),
                     hjust=0,
                     vjust=1,
                     color="white") +
-          geom_text(aes(label = ifelse(Sex %in% "M", 
+          geom_text(aes(label = ifelse(Sex %in% "M" & visa.percent>9, 
                                        # show value on male side only
                                        paste(percent.male, "% ", sep=""),
                                        ""
@@ -77,19 +99,19 @@ ggplot(tornado, aes(x=age.group, y=EDN, fill=Sex)) +
                         hjust = 1,
                         vjust=0 ,
                         lineheight=1 ,
-                        y=EDN,
-                        size=t$max.edn/2
+                        y=count,
+                        size=t$max.count/2
                         ), 
                     color="black") +
-          geom_text(aes(label = ifelse(Sex %in% "M", 
+          geom_text(aes(label = ifelse(Sex %in% "M" & visa.percent>9, 
                                        # show value on male side only
                                        "male  ",
                                        ""
                                        ),
                         hjust = 1,
                         vjust= 1,
-                        y=EDN,
-                        size=t$max.edn/4
+                        y=count,
+                        size=t$max.count/3
                         ), 
                     color="black") +
           scale_size_continuous(range=c(2,15), guide=FALSE) + 
@@ -101,28 +123,9 @@ ggplot(tornado, aes(x=age.group, y=EDN, fill=Sex)) +
           theme( axis.title.x = element_text(face="bold", size=20),
                  axis.title.y = element_text(face="bold", size=20),
                  axis.text.x = element_text(face="bold", size=18),
-                 axis.text.y = element_text(face="bold", size=18 )
+                 axis.text.y = element_text(face="bold", size=18)
                  ) 
 
 # Facet by visa type
-ggplot(tornado, aes(x=age.group, y=EDN, fill=Sex)) + 
-     geom_bar(stat="identity", position="identity") +  # error if stat= not included.  don't know why?!
-     coord_flip() + 
-     scale_fill_hue(l=40) + 
-     xlab("Age") + theme(axis.title.y = element_text(face="bold", size=20)) +
-     ylab("Population") + theme(axis.title.x = element_text(face="bold", size=20)) + 
-     facet_grid(.~Visa.Type, scale="free")
+     ggTornado + facet_grid(.~Visa.Type, scale="free")
 
-# dot plot
-tornado2=tornado
-tornado2$EDN = ifelse(tornado2$Sex %in% 'F', -1*tornado2$EDN, tornado2$EDN)  # convert female back to positive numbers
-tornado2$CYLPR = ifelse(tornado2$Sex %in% 'F', -1*tornado2$CYLPR, tornado2$CYLPR) 
-tornado2$CYLPR = -1*tornado2$CYLPR  # convert lpr totals to negative numbers
-
-ggplot(tornado2, aes(x=age.group, y=EDN, fill=Sex, color=Sex)) + 
-     geom_point(stat="identity", position="jitter", size=3) +  # error if stat= not included.  don't know why?!
-     coord_flip() + 
-     scale_fill_hue(l=40) + 
-     xlab("Age") + theme(axis.title.y = element_text(face="bold", size=20)) +
-     ylab("Population") + theme(axis.title.x = element_text(face="bold", size=20)) + 
-     facet_grid(.~Visa.Type, scale="free")
