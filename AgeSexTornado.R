@@ -14,7 +14,7 @@ head(arrivals)
 save(arrivals, file = "arrivals.rda")
 
 # select Country and Year
-     .country = "India"
+     .country = "philippines"
      if ( !is.na(.country)){
           arrivals = arrivals.all[arrivals.all$Country.Name %in% toupper(.country),]
      }
@@ -58,8 +58,8 @@ save(arrivals, file = "arrivals.rda")
      t = ddply(t, .(Visa.Type), transform, 
                 visa.percent = round(100*abs(total)/sum(abs(count))) 
                 )
-# remove 'unknown' age group
-     t = t[!t$age.group == "Unknown",]
+# remove 'unknown' age group and sex
+     t = t[!(t$age.group == "Unknown" | t$Sex == "Unknown") ,]
 
 # organize sex data
      t$Sex = factor(t$Sex)
