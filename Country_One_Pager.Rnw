@@ -1,0 +1,86 @@
+% http://timelyportfolio.blogspot.com/2013/02/onepager-now-with-knitr.html
+
+\documentclass[nohyper,justified]{tufte-handout}
+\usepackage[absolute]{textpos}
+\usepackage{sidecap}
+\usepackage{units}    % non-stacked fractions and better unit spacing
+\usepackage{multicol} % multiple column layout facilities
+\usepackage{lipsum}   % filler text
+
+
+<<"setup", echo=FALSE , message=FALSE, cache=FALSE>>=
+opts_chunk$set( echo=FALSE, cache=FALSE, results='asis',
+                fig.align='left', fig.show='hold', 
+                fig.width=7, fig.height=7,
+                fig.path='images', message=FALSE, comment="", 
+                tidy=TRUE,
+                concordance=TRUE)
+options(replace.assign=TRUE,width=60)
+
+.title= 'X Diaspora'
+.author = 'IRMHB'
+@
+
+\title{\Sexpr{.title}}
+\author{\Sexpr{.author}}
+\begin{document}
+
+\maketitle
+
+\begin{wide}
+\section{\Huge Haiti}
+{\Large A country with x,xxx,xxx residents and a GDP that ranks X in the world.The demographic and medical snapshot of immigrant and refugee arrivals to the United States is compiled from DHS and CDC data.}
+
+\hrulefill
+\end{wide}
+
+\section{Immigrants}
+<<"x.immigrant">>=
+
+     ## load number of arrivals from DNA and save as .rda file for later use
+     #==== NOTE ==== to get most up to date data, need to open, refresh, and save XL file
+     library(XLConnect)
+     wb = "//cdc/project/ccid_ncpdcid_dgmq/IRMH/_Epi Team/DNA/immigrant-profile.xlsx"
+     arrivals.all = readWorksheetFromFile(wb, sheet = "VisaExamAgeSexEDN-DHS", 
+                                     startRow=5, header = TRUE)
+     # head(arrivals)
+     save(arrivals.all, file = "arrivals.all.rda")
+
+     source("AgeSexTornadoFunction.R")
+     AgeSexTornado(.country="Haiti", .visa="LPR")
+
+@
+ 
+\marginnote{A place to put a chart of all immigrants}
+
+% margin figure
+<<"all.imm", fig.cap="The age and sex distribution of immigrants from all countries", fig.env='marginfigure', fig.pos='-5in'>>=
+AgeSexTornado(.country=NA, .visa="LPR", .theme="tufte")
+@
+
+
+% \vspace{0pt}
+\section{Refugees}
+
+\newthought{Refugees arrivals} are the largest class of new Americans form Haiti
+
+<<"x.refugee">>=
+
+AgeSexTornado(.country="Haiti", .visa="Refugee/Asylee")
+
+@
+
+% margin figure
+<<"all.ref", fig.cap="The age and sex distribution of immigrants from all countries", fig.env='marginfigure', fig.pos='-5in'>>=
+     AgeSexTornado(.country=NA, .visa="Refugee/Asylee", .theme="tufte")
+@
+
+
+\section{Tuberculosis}
+Tuberculosis rates are high in country X
+
+<<"TB">>=
+print("TB rates?")
+@
+ 
+\end{document}
