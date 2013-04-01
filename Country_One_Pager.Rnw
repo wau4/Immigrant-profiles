@@ -36,6 +36,7 @@ options(replace.assign=TRUE,width=60)
 
 \section{Immigrants}
 <<"x.immigrant">>=
+<<<<<<< HEAD
 
      ## load number of arrivals from DNA and save as .rda file for later use
      #==== NOTE ==== to get most up to date data, need to open, refresh, and save XL file
@@ -46,6 +47,7 @@ options(replace.assign=TRUE,width=60)
      # head(arrivals)
      save(arrivals.all, file = "arrivals.all.rda")
 
+=======
      source("AgeSexTornadoFunction.R")
      AgeSexTornado(.country="Haiti", .visa="LPR")
 
