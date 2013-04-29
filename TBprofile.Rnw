@@ -52,6 +52,7 @@ options(replace.assign=TRUE,width=60)
 
 @
  
+
 \marginnote{A place to put a chart of all immigrants}
 
 % margin figure
@@ -84,4 +85,48 @@ Tuberculosis rates are high in country X
 print("TB rates?")
 @
  
+  <<"x.whotb">>=
+
+     ## who tb data
+     whotb = readWorksheetFromFile(wb, sheet = "whotb", 
+                                     startRow=2, header = TRUE)
+     whotb$statistic = factor(whotb$GHO.Name)
+     # head(arrivals)
+     save(whotb, file = "whotb.rda")
+     load("whotb.rda")
+
+     ## who tb data
+     edntb = readWorksheetFromFile(wb, sheet = "edntb", 
+                                     startRow=5, header = TRUE)
+     save(edntb, file = "edntb")
+     edntb$country = tolower(edntb$Country.Name)
+     edntb.2011 = edntb[edntb$Year == "Calendar 2011",]
+
+     # inspect table of statistics available and their factor label
+     # levels(whotb$statistic)
+     ### prevalence per 100,000 is factor level 8
+
+     whotb$country = tolower(whotb$Country)
+     arrivals.all$country = tolower(arrivals.all$Country.Name)
+
+     whotb.2011 = whotb[whotb$YEAR == "2011",]
+     prevalence = which(as.numeric(whotb.2011$statistic) == 8)
+     arrivals.2011 = arrivals.all[arrivals.all$Year == "Calendar 2011",]
+     # dhs data missing for 2011
+     arrivals.2010 = arrivals.all[arrivals.all$Year == "Calendar 2010",]
+     
+     who.dhs = merge(whotb.2011[prevalence, c(1,2,5,7)], arrivals.2010)
+     who.dhs.edn = merge(who.dhs, edntb.2011, by.x='country', by.y='country')
+     save(who.dhs.edn, file='who.dhs.edn.rda')
+
+     head(who.dhs.edn)
+
+@
+
+<<topTb>>=
+     
+@
+
+
+
 \end{document}
