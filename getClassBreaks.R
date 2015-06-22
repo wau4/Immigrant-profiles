@@ -1,4 +1,4 @@
-getClassBreaks = function (dataVector, catMethod = 'logFixedWidth', numCats = 5, verbose = TRUE, midpoint = 0,
+getClassBreaks = function (dataVector, catMethod = 'fixedWidth', numCats = 5, verbose = TRUE, midpoint = 0,
                round = FALSE, 
                effective.zero = 1  # everything less than this will be grouped with zero
 ) 
@@ -21,14 +21,19 @@ getClassBreaks = function (dataVector, catMethod = 'logFixedWidth', numCats = 5,
           
           ### add function to round the values (jp May 2015) ####
           if (round) {
-               if (signif(maxVal, digits=1) >= maxVal) {
-                    maxVal = signif(maxVal, digits=1) } else {
-                         if ( signif(maxVal, digits=2) >= maxVal){
-                              maxVal = signif(maxVal, digits=2) } else {
-                                   if ( signif(maxVal, digits=3) >= maxVal){
-                                        maxVal = signif(maxVal, digits=3) } else {
-                         if ( signif(maxVal, digits=4) >= maxVal){
-                              maxVal = signif(maxVal, digits=4) }
+              sig_digits = 1
+              if (signif(maxVal, digits = sig_digits) >= maxVal) {
+                    sig_digits = sig_digits + 1
+                    maxVal = signif(maxVal, digits = sig_digits) } else {
+                         if ( signif(maxVal, digits = sig_digits) >= maxVal){
+                              sig_digits = sig_digits + 1
+                              maxVal = signif(maxVal, digits = sig_digits) } else {
+                                   if ( signif(maxVal, digits = sig_digits) >= maxVal){
+                                     sig_digits = sig_digits + 1
+                                     maxVal = signif(maxVal, digits= sig_digits) } else {
+                         if ( signif(maxVal, digits = sig_digits) >= maxVal){
+                               sig_digits = sig_digits + 1
+                               maxVal = signif(maxVal, digits = sig_digits) }
                                         }}}
                }
           
@@ -37,7 +42,12 @@ getClassBreaks = function (dataVector, catMethod = 'logFixedWidth', numCats = 5,
           
           ### add function to round the values (jp May 2015) ####
           if (round) {
-               cutVector[1:(length(cutVector)-1)] = signif(cutVector[1:(length(cutVector)-1)], digits = 1)
+               cutVector[1:(length(cutVector)-1)] = signif(cutVector[1:(length(cutVector)-1)], 
+                                                           digits = sig_digits )
+               minVal <- min(dataVector, na.rm = TRUE)
+               maxVal <- max(dataVector, na.rm = TRUE)
+               cutVector[1] = minVal
+               cutVector[max(length(cutVector))] = maxVal
           }
           
      }
@@ -88,6 +98,16 @@ getClassBreaks = function (dataVector, catMethod = 'logFixedWidth', numCats = 5,
      }
      else if (catMethod == "pretty") {
           cutVector <- pretty(dataVector, n = numCats)
+          
+          # reset cut vector to minimum and maximum values of data.
+          # use the round option to select whether or not to do this
+          if (round){
+            minVal <- min(dataVector, na.rm = TRUE)
+            maxVal <- max(dataVector, na.rm = TRUE)
+            cutVector[1] = minVal
+            cutVector[max(length(cutVector))] = maxVal
+          }
+          
           actualNumberOfBreaks <- length(cutVector) - 1
           if (actualNumberOfBreaks != numCats && verbose) 
                message(paste("You asked for", numCats, "categories,", 
