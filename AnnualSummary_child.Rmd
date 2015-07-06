@@ -1,0 +1,561 @@
+---
+title:
+geometry: margin=1in  
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+output:
+  pdf_document:
+     toc: false
+     fig_caption: yes
+     keep_tex: yes
+
+header-includes: 
+     - \usepackage{titlesec}
+     - \newcommand{\subsectionbreak}{\clearpage}
+     - \linespread{1.3}
+     - \renewcommand{\textfraction}{0.05}
+     - \renewcommand{\topfraction}{0.9}
+     - \renewcommand{\bottomfraction}{0.9}
+     - \renewcommand{\floatpagefraction}{0.9}
+
+documentclass: memoir
+  
+---
+
+
+```{r, include=FALSE}
+
+# provide defaults for running as a standalone document (basically for testing)
+if (!exists("year.start")) year.start = 2008
+if (!exists("year.end")) year.end = 2014
+if (!exists(".year")) .year = 2014
+
+if (!exists(".country")) .country = 'Thailand' 
+if (!exists("edn_counts")) load('edn_counts.rda')
+if (!exists("population")) load('population.rda')
+if (!exists("dhs.")) load('dhs.rda')
+if (!exists("dhs_max_year")) dhs_max_year = max(dhs.$year)
+if (!exists("gdppc")) load('gdppc.rda') 
+if (!exists("yearly"))  load("yearly.rda")
+
+if (!exists("edn.geo")) load('../geo/edn_geo.rda') 
+if (!exists("hexbin_usa"))  source("../geo/hexbin_usa.R")
+if (!exists("fips"))  load("../geo/fips.rda")
+
+if (!exists("alien_type")) alien_type = "I"
+if (!exists("brewer.palattes")) brewer.palattes = ifelse( alien_type ==  "I","Oranges" , "Blues" )
+if (!exists("brewer.palatte")) brewer.palatte = ifelse( alien_type ==  "I","Orange" , "Blue" )
+
+library(knitr)
+opts_chunk$set(echo=FALSE,
+               message=FALSE, comment="", tidy=TRUE, results='asis', warning=FALSE, 
+               dev="png", 
+               dev.args=list(type="cairo"),
+               dpi=96, 
+               cache=FALSE)
+library(lubridate)
+# library(magrittr)
+library(ggplot2)
+library(gridExtra)
+library(grid)
+library(scales)
+library(magrittr)
+library(tidyr)
+library(dplyr)
+
+```
+  
+```{r }
+
+pop = filter(population, Country == .country) %>% select(yr2013)
+
+rank.pop = which(population$Country == .country)
+
+rank.gdppc = which(gdppc$Country == .country)
+
+gdppc.val = filter(gdppc, Country == .country) %>% select(yr2013)
+
+```
+
+
+# `r paste(.country) `, `r .year`
+
+
+```{r}
+
+t = data.frame(
+  pop = paste0(comma(round(pop/1000000,1)), " million (", rank.pop, ")"),
+  gdp = paste0(dollar(round(gdppc.val[1,1])),  " (", rank.gdppc, ")")
+)
+
+kable(t, col.names = c("Population (rank)", "GDP / capita (rank)"))
+
+
+# tbl <- tableGrob(t,
+#                  cols = c("Population (rank)", "GDP / capita (rank)"),
+#                  show.rownames =FALSE, theme=theme.white(),
+#                  show.namesep = TRUE, show.csep = TRUE, separator = 'black')
+# 
+# grid.arrange(tbl,
+#              nrow=1,
+#              as.table=TRUE, heights = c(1))
+
+# plot(iris)
+```
+
+
+```{r , fig.height= 3.5, fig.width = 6.5, dpi=300, fig.cap= NULL, fig.lp=NULL}
+
+aos_new = ggplot(data = yearly %>% 
+                   filter( AlienType %in% c('New Immigrant Arrivals', 'Status Adjusters') ) %>%
+                   filter(Country == .country) %>%
+                   group_by(year, AlienType) %>%
+                   summarize( count = sum(count)
+                         ),
+           aes(x=year, y=count)
+           ) + 
+  geom_point(aes(color = AlienType), size = 3) +
+  geom_line(aes(color = AlienType, group=AlienType), size=1) +
+  scale_color_manual('', values=c('Dark Green', 'Purple', 'Dark Orange', 'Blue' )) +
+  scale_y_continuous(labels=comma ) +
+  scale_x_continuous( breaks = year.start:year.end) +
+  xlab("\nYear") + 
+  ylab("Arrivals\n")  +
+  theme_bw() +
+  theme(legend.position = 'top',
+        plot.margin=unit(c(0,0,0,0),"mm"),
+        axis.text = element_text( size = 12),
+        axis.title = element_text( size = 12, face = 'bold')
+        )
+
+# aos_new
+
+ref_b = ggplot(data = yearly %>% 
+                 filter( AlienType %in% c('Class B New Immigrants', 'Refugees') ) %>%
+                filter(Country == .country) %>%
+                 group_by(year, AlienType) %>% 
+                 summarize( count = sum(count)
+                         ),
+           aes(x=year, y=count)
+           ) + 
+  geom_point(aes(color = AlienType), size = 3) +
+  geom_line(aes(color = AlienType, group=AlienType), size=1) +
+  scale_color_manual('', values=c('Dark Orange', 'Blue' )) +
+  scale_y_continuous(labels=comma ) +
+  scale_x_continuous( breaks = year.start:year.end) +
+  xlab("\nYear") + 
+  ylab("Arrivals\n")  +
+  theme_bw() +
+  theme(legend.position = 'top',
+        plot.margin=unit(c(0,0,0,0),"mm"),
+        axis.text = element_text( size = 12),
+        axis.title = element_text( size = 12, face = 'bold')
+        )
+
+# ref_b
+
+grid.arrange(aos_new, ref_b)
+```
+
+
+```{r , fig.height = 2, fig.width = 6.5, dpi=300 , fig.cap= NULL,  fig.lp=NULL}
+
+dhs_max_year = max(dhs.$year)
+
+a = dhs. %>%
+      filter(year == min(dhs_max_year, .year), 
+             Country == .country) %>%
+     select(Country, year, Arrivals, Sex, agegroup, AlienType) %>%
+     group_by(year, AlienType, agegroup, Sex) %>%
+     summarize(Arrivals = sum(Arrivals)) %>%
+     mutate( Arrivals = ifelse(Sex %in% 'F', -1*Arrivals, Arrivals),
+             percent.male = round( 
+                          sum(Arrivals * (Sex %in% "M"))*100/sum(abs(Arrivals) * (Sex %in% c("F", "M")) ) 
+                          )
+             ) 
+
+v = a %>%
+     group_by(year, AlienType, agegroup) %>%
+     summarize(Arrivals = sum(abs(Arrivals)) ) %>%
+     mutate( visa.percent = round(100*abs(Arrivals)/sum(Arrivals) ) ) %>%
+     select(-Arrivals)
+     
+av = left_join(a,v, by=c('year', 'AlienType', 'agegroup'))   
+
+text.scale = 3
+
+# trans_new("abs_trans", function(x) abs(x), function(x) abs(x), format = comma, domain = c(-Inf, Inf))
+
+data = av %>% filter(AlienType %in% 'New Arrival')
+max.count=max(abs(data$Arrivals))
+
+       ggTornado = 
+       ggplot(data, aes(x=agegroup, y=Arrivals, fill=Sex)) + 
+            geom_bar(stat="identity", position="identity", width = .95) + 
+                   
+            # Percent male label  # show value on male side only
+            geom_text(aes(
+                         label = ifelse(Sex %in% "M"  , 
+                                         paste(" ", percent.male, "% male", sep=""),
+                                         ""
+                                         ),
+                         hjust = ifelse(visa.percent>33, 1, 0),
+                         vjust= 0.5  ,
+                         color = ifelse(visa.percent>33, 'white', 'black'),
+                          y=Arrivals
+                          ),
+                      size= text.scale - 1 
+                      ) +
+     
+#             geom_text(aes(label = ifelse(Sex %in% "M" & visa.percent>20, 
+#                                          " male  ",
+#                                          ""
+#                                          ),
+#                           hjust = ifelse(visa.percent>33, 1, 0),
+#                           vjust= ifelse(visa.percent>33, 0, 1 ),
+#                           color = ifelse(visa.percent>33, 'white', 'black'),
+#                           y=Arrivals
+#                           ), 
+#                       size = text.scale 
+#                       ) +
+            
+            scale_size_continuous(range=c(4,8), guide=FALSE) + 
+            scale_color_manual(values=c("black", "white"), guide=FALSE) +
+            scale_y_continuous( labels = abs , #  comma format for populations
+                                limits = c( -1*max(abs(data$Arrivals)), max(abs(data$Arrivals)) ) 
+                                ) + 
+            # scale_x_discrete(breaks = NULL) + # removes grid lines
+            scale_fill_manual(values=c("red", "blue", "grey"), guide=FALSE) + 
+            xlab("Age\n") +
+            ylab("\nImmigrant Arrivals, 2013") + 
+            coord_flip() + 
+            theme( 
+                    plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
+                    axis.title.x = element_text(face="bold", size=10),
+                   axis.title.y = element_text(face="bold", size=10),
+                   axis.text.x = element_text(face="bold", size=8),
+                   axis.text.y = element_text(face="bold", size=8),
+                   axis.ticks = element_blank(),
+                   panel.background =  element_rect(fill = NA, colour = NA), 
+                   panel.border =      element_rect(fill = NA, colour=NA), 
+                   panel.grid.major.y =  element_blank(),
+                   panel.grid.major.x =  element_line(colour = 'grey', size = 0.2),
+                   panel.grid.minor =  element_line(colour = NA, size = 0.5)
+            ) 
+
+ggTornado.age = data %>% group_by(agegroup) %>% summarize(Arrivals = sum(abs(Arrivals))) %>% 
+               ggplot(aes(x=agegroup, y=Arrivals/sum(Arrivals))) + 
+               geom_histogram(stat="identity", position="identity", width = .95) +
+               geom_text( aes(label = percent( round( abs( Arrivals/sum(abs(Arrivals)) ), 2) ),
+                              y=Arrivals/sum(abs(Arrivals))/2 ,
+                              color = ifelse( abs( Arrivals/sum(abs(Arrivals)) )>.25 , "white", "black"),
+                              hjust = ifelse( abs( Arrivals/sum(abs(Arrivals)) )>.25 , 0.5, -1)
+                              ),
+                         vjust=0.5, size = text.scale 
+                         )+  
+               scale_color_manual(values=c("black", "white"), guide=FALSE) +
+               ylab("\n  ") + 
+               xlab("\n  ") + 
+               coord_flip() + 
+                    theme_bw() +
+                    theme( 
+                      plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
+                      axis.title.y = element_blank(),
+                        axis.text.y = element_blank() ,
+                        axis.title.x = element_text(face="bold", size=10),
+                        axis.text.x = element_text( face="bold", size=8, color = 'white') ,
+                        axis.ticks = element_blank(),
+                        panel.background =  element_rect(fill = NA, colour = NA), 
+                        panel.border =      element_rect(fill = NA, colour=NA), 
+                        panel.grid.major =  element_line(colour = NA, size = 0.2),
+                        panel.grid.minor =  element_line(colour = NA, size = 0.5)
+                 ) 
+ 
+
+
+ggTornado.male = data %>% group_by(Sex) %>% summarize(Arrivals = sum(Arrivals)) %>% 
+               filter(Sex %in% c('F', 'M')) %>%
+               ggplot(aes(x= "Sex", y=Arrivals , fill = Sex)) + 
+               geom_bar(stat="identity", position="identity", width = .95) +
+               geom_text( aes(label = percent( round( abs( Arrivals/sum(abs(Arrivals)) ), 2) ),
+                              y=Arrivals/2 ),
+                         hjust = 0.5, vjust=0.5 , x = 1, color="white",
+                         size = text.scale
+                         ) +  
+               annotate( 'text', label = 'Female', y= -max(-1*data$Arrivals) , x = 0 , 
+                         color="black", hjust=0.5, vjust=-.1, size = text.scale) +  
+               annotate( 'text', label = 'Male', y= max(data$Arrivals) , x = 0 , 
+                         color="black", hjust=0.5, vjust=-.1, size = text.scale) + 
+               scale_y_continuous(labels = percent) + 
+               scale_fill_manual(values=c("red", "blue", "grey"), guide=FALSE) +
+               ylab("\n  ") + 
+               xlab("\n  ") + 
+               coord_flip() +
+               theme_bw( ) +
+               theme( 
+                  plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
+                  axis.title.x = element_blank(),
+                   axis.title.y = element_text(face="bold", size=8),
+                   axis.ticks = element_blank(),
+                   axis.text.x =  element_blank(),
+                   axis.text.y =  element_text( face="bold", size=8, color = 'black'),
+                   panel.background =  element_rect(fill = NA, colour = NA), 
+                   panel.border =      element_rect(fill = NA, colour=NA), 
+                   panel.grid.major =  element_line(colour = NA, size = 0.2),
+                   panel.grid.minor =  element_line(colour = NA, size = 0.5)
+            ) 
+
+empty = grob()
+
+grid.arrange(empty, ggTornado.male, ggTornado.age, ggTornado, ncol=2, nrow=2, 
+             widths=c(2,6), heights=c(2,6))
+
+# grid.arrange(ggTornado, ggTornado.age, ncol=2, nrow=1, widths=c(6, 1))
+
+```
+
+## Destination States
+
+```{r , fig.width = 6, fig.height= 7, fig.fullwidth = FALSE, dpi=300, fig.cap= ""}
+
+data_year = edn.geo %>% 
+  filter( AlienType == alien_type) %>%
+  filter( year(ArrivalDate) == .year ) %>%  
+  filter( presentcountry == .country ) %>%  
+  count(State) %>%
+  set_names(c('id', 'count'))
+
+data_total = edn.geo %>% 
+  filter( AlienType == alien_type) %>%
+  filter( year(ArrivalDate) %in% (year.start:(year.end - 1)) ) %>%  
+  filter( presentcountry == .country ) %>%  
+  count(State) %>%
+  set_names(c('id', 'count'))
+
+grid.arrange(
+     
+     hexbin_map(fill_data = data_year,  bin = 6, bin_method = "pretty",
+                text_size = 2, text_color = 'gray20', 
+                brewer_palatte = brewer.palattes, 
+                chart_title = paste( .country, .year), 
+                legend_position = 'right') ,
+     
+     hexbin_map(fill_data = data_total,  bin = 6, bin_method = "pretty",
+                text_size = 2, text_color = 'gray20', 
+                brewer_palatte = brewer.palattes, 
+                chart_title = paste(.country, year.start, "-", (year.end - 1)), 
+                legend_position = 'right') ,
+     
+     ncol = 1 )
+
+
+# ggsave("hexbin.png")
+```
+
+## Tuberculosis Screening, `r .country`
+
+
+```{r , eval = TRUE, fig.height= 1.5, fig.width= 6.5, dpi=300, fig.cap= "Number of pulmonary TB cases diagnosed at **overseas** exam.  Points labeled with number of cases."}
+
+# get counts of those with tb
+e = edn_counts %>% 
+     select( presentcountry, AlienType, year, abnCXR, count) %>% 
+     filter( presentcountry == .country,
+             AlienType %in% alien_type , 
+           Overseas_TB_Case == 1 ) %>%
+     as.data.frame() %>%
+     mutate( AlienType = factor(AlienType, 
+                                levels = c('I', 'R'), 
+                                labels =  c('New Immigrant Arrivals', 'R') ) 
+             ) %>%
+     group_by(AlienType, year) %>% 
+     summarize(count = sum(count, na.rm=TRUE))
+
+# combine tables
+overseas_tb = inner_join(e %>% as.data.frame() %>% mutate( AlienType = as.character(AlienType)), 
+                      yearly %>% filter(Country == .country) %>% as.data.frame() %>% 
+                        mutate( AlienType = as.character(AlienType)),
+                      by = c("AlienType", "year")) %>%
+     mutate( 
+               TBrate =  count.x * 100000 / count.y
+               )
+# for immigrants, dark green to indicate denominator is all new immigrants
+brewer.palatte = ifelse( alien_type ==  "I","Dark Green" , "Blue" )
+
+g = ggplot(data = overseas_tb, 
+           aes(x=year, y=TBrate, label= comma(count.x))
+           ) + 
+     geom_point(color = brewer.palatte, size = 4) +
+     geom_line( color = brewer.palatte, size = 1.5) +
+     geom_text(color = 'black', hjust = -1, vjust = 1 , size = 3) +
+     scale_x_continuous("\nYear", breaks = year.start:(.year+1), 
+                        limits = c(year.start,(.year+1)) ) +
+     ylab("TB Rate \nper 100,000")  +
+     theme_bw() +
+     theme(legend.position = 'right') +
+    theme(plot.margin=unit(c(0,0,0,0),"mm"))
+g
+```
+
+
+```{r , eval = TRUE, fig.height= 2.25,  fig.width= 6.5, dpi=300, fig.cap= "Oversease TB screening by agegroup. (Data are from year in which most recent DHS denominator data was available.)"}
+
+tb_age = edn_counts %>% as.data.frame() %>%
+     filter( year == dhs_max_year) %>%
+     filter( presentcountry == .country,
+                    AlienType %in% alien_type ) %>%
+     select( abnCXR, ClassB2LTBI, Overseas_TB_Case, agegroup, Sex, count) %>% 
+     group_by( agegroup, Sex) %>%  
+     summarize( 
+       abnCXR = sum(abnCXR * count) ,
+       ClassB2LTBI = sum(ClassB2LTBI * count) ,
+       Overseas_TB_Case = sum(Overseas_TB_Case * count) 
+               ) %>%
+    inner_join( dhs. %>% as.data.frame() %>% 
+                  filter( year== dhs_max_year, Country == .country, AlienType == "New Arrival") %>%
+                  select( agegroup, Sex, Arrivals), 
+               by = c("agegroup", "Sex")
+               ) %>%
+     mutate(
+       `TB\nCXR` = abnCXR / Arrivals ,
+       LTBI = ClassB2LTBI / Arrivals,
+       `TB\nDisease` = Overseas_TB_Case / Arrivals
+     ) %>%
+     select( -abnCXR, -ClassB2LTBI, -Overseas_TB_Case, -Arrivals) %>%
+     gather(type, rate, -agegroup, - Sex)
+
+# set LTBI = NA for all ages >14
+tb_age[ !(tb_age$agegroup %in% c("0-1", "2-14")) & tb_age$type == "LTBI",  "rate"] = NA
+
+# for immigrants, dark green to indicate denominator is all new immigrants
+brewer.palatte = ifelse( alien_type ==  "I","Dark Green" , "Blue" )
+
+g = ggplot(data = tb_age, 
+           aes(x=agegroup, y=rate, linetype = Sex, group = Sex)
+           ) + 
+     geom_point( color = brewer.palatte ) +
+     geom_line( color = brewer.palatte, size = 1.5) +
+     # geom_text(color = 'black', hjust = -1, vjust = 1 , size = 4) +
+     # geom_text(color = 'black', hjust = -.25, vjust = 1 , size = 4, position = position_jitter(w = 0.01, h = 0.01)) +
+     scale_x_discrete("\nAge" ) +
+     scale_y_continuous(label = percent) +
+     # scale_size_continuous(guide = FALSE) +
+     # scale_color_discrete("TB Diagnosis") +
+     ylab("Rate\n")  +
+     theme_bw() +
+     theme(legend.position = 'right') +
+    theme(plot.margin=unit(c(0,0,0,0),"mm")) +
+  facet_grid(type ~ . , scale = "free")
+
+g
+
+```
+
+
+```{r , eval = TRUE, fig.height= 2,  fig.width= 6.5, dpi=300, fig.cap= "Percent of CLass B TB diagnosed with TB disease at **domestic** exam.  Points labeled with number of cases."}
+
+domestic_tb = edn_counts %>% 
+     select( presentcountry, AlienType, year, Domestic_TB_Case, TBActiveClassB, TBInactiveClassB, ClassB2LTBI, ClassB1Pulmonary, count) %>% 
+     filter( presentcountry == .country,
+                    AlienType %in% alien_type , 
+                    ClassBTB == 1 | ClassB1Pulmonary == 1 | ClassB2LTBI ==1 ) %>%
+     as.data.frame() %>%
+     mutate( AlienType = factor(AlienType, 
+                                levels = c('I', 'R'), 
+                                labels =  c('New Immigrant Arrivals', 'R') ) 
+             ) %>%
+     group_by(AlienType , year) %>%  
+     summarize( ActiveBTB_n = sum(ifelse(TBActiveClassB %in% 1, 1, 0)),
+                InactiveBTB_n = sum(ifelse(TBInactiveClassB %in% 1, 1, 0)),
+               ClassB2LTBI_n = sum(ifelse(ClassB2LTBI %in% 1 , 1, 0)), 
+               ClassB1Pulmonary_n = sum(ifelse(ClassB1Pulmonary %in% 1 , 1, 0)),
+               
+               ActiveBTB_TB = sum(ifelse(TBActiveClassB %in% 1 & Domestic_TB_Case %in% 1, 1, 0)),
+               InactiveBTB_TB = sum(ifelse(TBInactiveClassB %in% 1 & Domestic_TB_Case %in% 1, 1, 0)),
+               ClassB2LTBI_TB = sum(ifelse(ClassB2LTBI %in% 1 & Domestic_TB_Case %in% 1, 1, 0)), 
+               ClassB1Pulmonary_TB = sum(ifelse(ClassB1Pulmonary %in% 1 & Domestic_TB_Case %in% 1, 1, 0)) 
+               ) 
+
+domestic_tb_rates =  domestic_tb %>% as.data.frame() %>%
+  mutate( ActiveBTB =  ActiveBTB_TB/ ActiveBTB_n,
+          InactiveBTB =  InactiveBTB_TB/ InactiveBTB_n,
+             `B2\nLTBI` = ClassB2LTBI_TB/ ClassB2LTBI_n,
+             `B1\nPulmonary` = ClassB1Pulmonary_TB/ ClassB1Pulmonary_n
+               ) %>%
+  select(year, ActiveBTB, InactiveBTB, `B2\nLTBI`, `B1\nPulmonary`) %>%
+  gather(type, rate, -year) 
+
+domestic_tb_counts =  domestic_tb %>% as.data.frame() %>%
+  select(year,  ClassB2LTBI_TB,  ClassB1Pulmonary_TB) %>%
+  rename( `B2\nLTBI` = ClassB2LTBI_TB,  `B1\nPulmonary` = ClassB1Pulmonary_TB ) %>%
+  gather(type, n,   -year) 
+
+domestic = domestic_tb_counts %>% inner_join(domestic_tb_rates)
+
+# for immigrants, dark green to indicate denominator is all new immigrants
+brewer.palattes = ifelse( alien_type ==  "I","Dark Green" , "Blue" )
+     
+g = ggplot(data = domestic, 
+           aes(x=year, y=rate, color = type, group = type, label = n)
+           ) + 
+     geom_point( aes(size = n) ) +
+     geom_line( size = 1) +
+     geom_text(color = 'black', hjust = 0, vjust = -0.7 , size = 3) +
+     # geom_text(color = 'black', hjust = -.25, vjust = 1 , size = 4, position = position_jitter(w = 0.01, h = 0.01)) +
+     scale_x_continuous("\nYear", breaks = year.start:(.year+1), 
+                        limits = c(year.start,(.year+1)) ) +
+     scale_y_continuous(label = percent) +
+     scale_size_continuous("TB Cases", guide = FALSE) +
+     scale_color_manual("Overseas \nClassification", values=c('Dark Orange', 'Orange' )) +
+     ylab("Percent \nTB Disease\n")  +
+     theme_bw() +
+     theme(legend.position = " " ) +
+    theme(plot.margin=unit(c(0,0,0,0),"mm")) +
+  facet_grid(type ~ .)
+g
+
+```
+
+
+```{r , eval = FALSE, fig.height= 2,  fig.width= 6.5, dpi=300, fig.cap= "Percent with abnormal chest radiograph"}
+
+# get counts of those with abn cxr
+e = edn_counts %>% 
+     select( presentcountry, AlienType, year, abnCXR, count) %>% 
+     filter( presentcountry == .country,
+             AlienType %in% alien_type , 
+             year %in% year.start:.year,
+           abnCXR == 1 ) %>%
+     as.data.frame() %>%
+     mutate( AlienType = factor(AlienType, 
+                                levels = c('I', 'R'), 
+                                labels =  c('New Immigrant Arrivals', 'Refugees') ) 
+             ) %>%
+     group_by(AlienType, year) %>% 
+     summarize(count = sum(count, na.rm=TRUE))
+
+# combine tables
+abn_xray = inner_join(
+  e %>% as.data.frame() %>% 
+    mutate( AlienType = as.character(AlienType)), 
+  
+  yearly %>% 
+    filter(Country == .country) %>% as.data.frame() %>% 
+    mutate( AlienType = as.character(AlienType)),
+  
+  by = c("AlienType", "year")) %>%
+  mutate( CXRrate =  count.x / count.y
+               )
+
+g = ggplot(data = abn_xray, aes(x=year, y=CXRrate, label = percent(CXRrate) ) ) + 
+     geom_point(color = brewer.palatte, size = 4) +
+     geom_line( color = brewer.palatte, size = 1.5) +
+     geom_text(color = 'black', hjust = -.25, vjust = 1 , size = 4) +
+     scale_y_continuous("% Abnormal CXR", labels = percent, limits = c(0,.2) ) +
+     scale_x_continuous("\nYear", breaks = year.start:.year, 
+                        limits = c(year.start,(.year+1)) ) +
+     theme_bw() +
+     theme(legend.position = 'right') +
+    theme(plot.margin=unit(c(0,0,0,0),"mm"))
+g
+```
+

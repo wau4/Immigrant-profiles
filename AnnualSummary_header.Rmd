@@ -12,11 +12,18 @@ output:
      keep_tex: yes
 
 header-includes: 
-     - \renewcommand{\textfraction}{0.01}  
      - \usepackage{titlesec}
      - \newcommand{\sectionbreak}{\clearpage}
+     - \newcommand{\subsectionbreak}{\clearpage}
      - \usepackage{fancyhdr}
      - \pagestyle{fancy}
+     - \linespread{1.3}
+     - \renewcommand{\textfraction}{0.05}
+     - \renewcommand{\topfraction}{0.8}
+     - \renewcommand{\bottomfraction}{0.8}
+     - \renewcommand{\floatpagefraction}{0.75}
+
+csl: krantz.csl
 
 ---
 
@@ -26,8 +33,8 @@ year.start = 2008
 year.end = 2015
 .year = 2014
 
-include_child_documents = FALSE
-topN = 5
+include_child_documents = TRUE
+topN = 2
 
 library(knitr)
 opts_chunk$set(echo=FALSE,
@@ -53,6 +60,7 @@ if (!exists(".country")) .country = 'Vietnam'
 if (!exists("edn_counts")) load('edn_counts.rda') # see AnnualSummary_Data.Rmd for making of edn_counts
 if (!exists("population")) load('population.rda')
 if (!exists("dhs.")) load('dhs.rda')
+if (!exists("dhs_max_year")) dhs_max_year = max(dhs.$year)
 if (!exists("gdppc")) load('gdppc.rda') 
 
 if (!exists("edn.geo")) load('//cdc/project/ccid_ncpdcid_dgmq/IRMH/_Epi Team/PanelDB/edn.geo.rda')  
@@ -60,8 +68,8 @@ if (!exists("edn.geo")) load('//cdc/project/ccid_ncpdcid_dgmq/IRMH/_Epi Team/Pan
 
 if (!exists("edn.geo")) load('../geo/edn_geo.rda')  # if network version unavailable, get local version
 
-if (!exists("hexbin_usa"))  source("../geo/hexbin_usa.R")
-if (!exists("fips"))  load("../geo/fips.rda")
+if (!exists("hexbin_map"))  source("../geo/hexbin_usa.R")
+if (!exists("countries"))  load("countries.rda")
 
 if (!exists("alien_type")) alien_type = "I"
 if (!exists("brewer.palattes")) brewer.palattes = ifelse( alien_type ==  "I", "Oranges" , "Blues" )
@@ -75,10 +83,19 @@ if (!exists("brewer.palatte")) brewer.palatte = ifelse( alien_type ==  "I","Oran
 
 The Centers For Disease Control (CDC) plays an important role in immigration by improving the health of immigrants and refugees and preventing the introduction, transmission, and preventing spread of communicable diseases through regulation, science, research, preparedness, and response.  This document summarizes the populations that are screened for diseases of public health significance and highlights some of the critical medical interventions they receive before living permenanently in the United States.  
 
-The United States has a population of XXX, of which XX% (XXX) were born in another country.  Many, but not all, are immigrants, a term that can have different meanings.  For US immigration, the term **immigrant** term 'refers to those that have the legal right to live in the United States permanently, and **non-immigrants** are those authorized to live in the United States temporarily, such as students, temporary workers, and visitors.[dhs non-immigrants]  (Neither of these categories include the approximately XXX **unauthorized visitors**.[dhs unauthorized])
+The United States has a population of 308 million, of which 13% (40 million) are foreign-born.^[http://www.census.gov/topics/population/foreign-born/about.html]  Many, but not all, are immigrants, a term that can have different meanings.  For US immigration, the term **immigrant** term 'refers to those that have the legal right to live in the United States permanently (legal permanent residents), and **non-immigrants** are those authorized to live in the United States temporarily, such as students, temporary workers, and visitors.[dhs non-immigrants]  (Neither of these categories include the estimated 11 million **unauthorized visitors**.^[Hoefer M, Rytina N, Baker BC (2009) Estimates of the unauthorized immigrant
+population residing in the United States: January 2009. Available: http://www.
+dhs.gov/xlibrary/assets/statistics/publications/ois_ill_pe_2009.pdf.])
 
-Interestingly, about half of those who acheive immigrant status do so while living in the United States under a non-immigrant visa.  These persons apply for **adjustment of status**, and are required to undergo medical screening, which is similar to the medical screening for persons applying overseas to enter the United States as immigrants.  This difference has a significant consequence in terms of reporting the results of the medical screening. Overseas, results of the medical exam are reported to the U.S. Consulate, the organization that grants immigrant visas,and a sealed copy is provided to all those who recieve an immigrant visa. Then, when a person with a new immigrant visa arrives at a US border, CDC's [Quarantine and Border Health Service Branch](http://www.cdc.gov/ncezid/dgmq/about-dgmq.html#quarantine) collects the medical exam for electronic data entry at CDC. [mmwr EDN]  For those already living in the United States and adjusting status, the paper form with results of the medical exam are sent to the Department of Homeland Security (DHS)and archived as paper records. In 2014, CDC initiated a project to collect and extract tuberculosis screening data into an electronic database.  Unfortunately, resources were not available at DHS to continue the project and therefore no data on the results of status adjuster's medical examinations are available for this review. 
+Interestingly, about half of those who acheive immigrant status do so while living in the United States under a non-immigrant visa (Fig 1, Immigration Trends).  These persons apply for **adjustment of status**, and are required to undergo medical screening, which is similar to the medical screening for persons applying overseas to enter the United States as immigrants.  For CDC, however, there is an important difference, in that the results of overseas exams are reported to CDC but results of adjustment of status are not reported to CDC. 
 
+Overseas, results of the medical exam are reported to the U.S. Consulate, the organization that grants immigrant visas,and a sealed copy is provided to all those who recieve an immigrant visa. Then, when a person with a new immigrant visa arrives at a US border, CDC's [Quarantine and Border Health Service Branch](http://www.cdc.gov/ncezid/dgmq/about-dgmq.html#quarantine) collects the medical exam for electronic data entry at CDC. [mmwr EDN]  For those already living in the United States and adjusting status, the paper form with results of the medical exam are sent to the Department of Homeland Security (DHS)and archived as paper records. In 2014, CDC initiated a project to collect and extract tuberculosis screening data into an electronic database.  Unfortunately, resources were not available at DHS to continue the project and therefore no data on the results of status adjuster's medical examinations are available for this review. Therefore, data available for this summary only includes those who had an overseas exam. 
+
+- TODO: describe use of 'country' 
+
+-- dhs uses country of birth
+-- wraps uses nationality
+-- edn has birth country and country of origin
 
 - TODO: Adoptees...
 
@@ -86,15 +103,17 @@ Interestingly, about half of those who acheive immigrant status do so while livi
 
 ## Immigration and Medical Examinations
 
-The Centers for Disease Control (CDC) determines the medical requirements for immigrant applicants.  Immigrant applications are processed overseas by those wishing to enter the United States 
+The Centers for Disease Control (CDC) determines the medical requirements for immigrant and refugee applicants.  
 
-- TODO: note on 'country', birth vs. present vs nationality 
+- TODO: note on 'country', birth vs. present vs nationality. define country of origin (used for purpose od comparing panels/programs). exam country used for reviewing panels, presentcoutnry for refugee programs, like vaccine programs.
 
-- TODO: define country of origin (used for purpose od comparing panels/programs). exam country used for reviewing panels, presentcoutnry for refugee programs, like vaccine programs.
+## Data Sources
+
+- TODO: numbers of refugees not reliable in 2008. describe data sources and color coding  
 
 # Overview
 
-```{r , fig.height= 6, fig.width = 8, fig.fullwidth = TRUE,  dpi=300, fig.cap= "Immigration Trends"}
+```{r trends, fig.height= 8, fig.width = 7.5, fig.fullwidth = TRUE,  dpi=300, fig.cap= "Immigration Trends"}
 
 # Note country data is organized by Nationality for refugees,
 #   present country for immigrants, 
@@ -124,7 +143,8 @@ yearly = rbind(dhs.,
                refugees %>% rename(Country = Nationality) ) %>% as.data.frame() %>%
      filter(year >= year.start & year <= year.end) %>%
      group_by(year, AlienType, Country) %>%
-     summarize( count = sum(Arrivals)) 
+     summarize( count = sum(Arrivals)) %>% 
+     left_join(countries, by = c("Country" = "CountryName") )
 
 # NB: the next statement seems to cause a crash when using %>% with above.  Quick fix to leave as separate line of code...
 yearly$AlienType = factor(yearly$AlienType, levels = c('New Arrival', 'AOS', 'B', 'R'),
@@ -186,6 +206,66 @@ ref_b = ggplot(data = yearly %>%
 grid.arrange(aos_new, ref_b)
 ```
 
+
+```{r trends-nationality, fig.height= 8, fig.width = 7.5, fig.fullwidth = TRUE,  dpi=300, fig.cap= "Immigration Trends"}
+
+# Note country data is organized by Nationality for refugees,
+#   present country for immigrants, 
+#   birth country for dhs.  This deserves a note...
+
+# Because scale is quite greater for AOS and new arrivals, make separate plots, then print together
+aos_new = ggplot(data = yearly %>% 
+              filter( AlienType %in% c('New Immigrant Arrivals') ) %>%
+              group_by(year, Continent) %>% 
+              summarize( count = sum(count)
+                         ),
+           aes(x=year, y=count)
+           ) + 
+  geom_point(aes(color = Continent), size = 4) +
+  geom_line(aes(color = Continent, group=Continent), size=1.5) +
+  # scale_color_manual('', values=c('Dark Green', 'Purple', 'Dark Orange', 'Blue' )) +
+  scale_y_continuous(labels=comma ) +
+  scale_x_continuous( breaks = year.start:year.end) +
+  xlab("\nYear") + 
+  ylab("Arrivals\n")  +
+  theme_bw() +
+  theme(legend.position = 'right',
+        plot.margin=unit(c(0,0,0,0),"mm"),
+        axis.text = element_text( size = 12),
+        axis.title = element_text( size = 12, face = 'bold')
+        )
+
+# aos_new
+
+ref_b = ggplot(data = yearly %>% 
+              filter( AlienType %in% c('Refugees') ) %>%
+              group_by(year, Continent) %>% 
+              summarize( count = sum(count)
+                         ),
+           aes(x=year, y=count)
+           ) + 
+  geom_point(aes(color = Continent), size = 4) +
+  geom_line(aes(color = Continent, group=Continent), size=1.5) +
+  # scale_color_manual('', values=c('Dark Orange', 'Blue' )) +
+  scale_y_continuous(labels=comma ) +
+  scale_x_continuous( breaks = year.start:year.end) +
+  xlab("\nYear") + 
+  ylab("Arrivals\n")  +
+  theme_bw() +
+  theme(legend.position = 'top',
+        plot.margin=unit(c(0,0,0,0),"mm"),
+        axis.text = element_text( size = 12),
+        axis.title = element_text( size = 12, face = 'bold')
+        )
+
+# ref_b
+
+grid.arrange(aos_new, ref_b)
+```
+
+
+## Destination States
+
 The (hexbin) maps below represent all 50 states and the District of Columbia.^[We choose to use a hexbin map here instead of a traditional cartographic map to focus the reader on the number per state. While some geographic relationship is maintained in the hexbin map (states with a common border are generally adjacent to each other), all states (and the District of Columbia) are the same size.  In maps where the size of the state is proportional to the area it is harder to appreciate that two states with the same color have the same number of arrivals--bigger states look more important.  Unless otherwise indicated, the numbers shown are not adjusted for the area or population of the state. NB: because the numbers of refugee arrivals is much larger than the number of immigrant notifications, each map has its own legend for representing the number of arrivals in each state.]   
 
 ```{r , fig.width = 7.5, fig.height= 7.5, fig.fullwidth = TRUE, dpi=300, fig.cap= "Arrivals by state"}
@@ -214,16 +294,23 @@ dataI = edn.geo %>%
   count(State) %>%
   set_names(c('id', 'count'))
 
-grid.arrange(hexbin_map(fill_data = dataR,  text_size = 2, text_color = 'gray20', brewer_palatte = "Blues",
+grid.arrange(
+     
+     hexbin_map(fill_data = dataR,  text_size = 2, text_color = 'gray20', brewer_palatte = "Blues",
                         chart_title = "Refugee Arrivals", legend_position = 'right'),
-             hexbin_map(fill_data  = dataI,  text_size = 2, text_color = 'gray20', brewer_palatte = "Oranges",
+     
+     hexbin_map(fill_data  = dataI,  text_size = 2, text_color = 'gray20', brewer_palatte = "Oranges",
                         chart_title = "Immigrant Notifications", legend_position = 'right'),
-             ncol=1, widths=c(7,7), heights=c(4,4)
+     
+     ncol=1, widths=c(7,7), heights=c(4,4)
              )
 
 # ggsave("hexbin.png")
 ```
 
+## Age and Sex
+
+NB: Age and Sex data available from most recent DHS yearbook data, `r max(dhs.$year)`
 
 ```{r dhs_age_sex_data}
 
@@ -400,13 +487,16 @@ ClassbImmigrant = edn_counts %>%
     top_n( topN ) %>%
     mutate(Arrivals = comma(Arrivals)) 
 
-countries = ClassbImmigrant$Country
+immigrant_detail_countries = ClassbImmigrant$Country
+countries = immigrant_detail_countries
 
-tbl <- tableGrob(ClassbImmigrant)
-grid.arrange(tbl,
-             nrow=1,
-             as.table=TRUE,
-             heights=c(4,6))
+kable(ClassbImmigrant)
+
+# tbl <- tableGrob(ClassbImmigrant)
+# grid.arrange(tbl,
+#              nrow=1,
+#              as.table=TRUE,
+#              heights=c(4,6))
 
 
 
@@ -442,7 +532,6 @@ close(fileConn)
 `r out`
 
 # Adoptees
-
 
 # Refugees
 
@@ -586,23 +675,35 @@ grid.arrange(empty, ggTornado.male, ggTornado.age, ggTornado, ncol=2, nrow=2,
 
 ```{r top_refugee_table, fig.height = 2, dpi=300, fig.cap= "Top `r topN` Countries with Largest Number of Newly Arriving Class B Notifications"}
 
-refs = edn_counts %>% 
-     filter(AlienType == 'R') %>%
+top_n_nationalities = edn_counts %>% as.data.frame() %>%
+     filter(AlienType == 'R', !is.na(Nationality)) %>%
      filter(year == .year) %>%
+     group_by(Nationality) %>%
+     summarize(Arrivals = sum(count)) %>% 
+     arrange( desc(Arrivals)) %>% 
+     top_n( topN ) %>% 
+     select(Nationality) %>% unlist()
+
+refs = edn_counts %>% 
+     filter(AlienType == 'R', !is.na(Nationality)) %>%
+     filter(year == .year, Nationality %in% top_n_nationalities ) %>%
      group_by(Nationality, presentcountry) %>%
     rename(`Country of Origin` = presentcountry) %>%
      summarize(Arrivals = sum(count)) %>% as.data.frame() %>%
     arrange( desc(Arrivals)) %>% 
-    top_n( topN ) %>%
     mutate(Arrivals = comma(Arrivals)) 
 
-countries = unique(refs$Nationality)
-countries = countries[!is.na(countries)]
+top_refugee_presentcountries = unique(refs[, "Country of Origin"])
+top_refugee_nationalities = unique(refs[, "Nationality"])
 
-tbl <- tableGrob(refs)
-grid.arrange(tbl,
-             nrow=1,
-             as.table=TRUE)
+countries = top_refugee_presentcountries
+
+kable(refs[1:20, ])
+
+# tbl <- tableGrob(refs[1:20, ]) # limit to 20 rows
+# grid.arrange(tbl,
+#              nrow=1,
+#              as.table=TRUE)
 
 ```
 
@@ -635,15 +736,17 @@ close(fileConn)
 
 `r out`
 
-
 # Disease of Public Health Significance
-- TODO: rates of abn cxr and cx pos( overseas and domesti)
-- TODO: same, by age
 
+- TODO: rates of abn cxr and cx pos( overseas and domesti)
+
+- TODO: same, by age
 
 ## Tuberculosis
 
 - TODO: print number of class b TB by classification
+
+_ TODO: describe igra vs tst: differences and availability
 
 ```{r cumsum_tb, fig.height= 7, fig.width= 7, dpi = 300}
 
@@ -737,7 +840,7 @@ g
 # Nationalities 
 
 
-```{r hexbin_grid, eval= FALSE, fig.width = 7.5, fig.height= 9, fig.fullwidth = TRUE, dpi=300, fig.cap= "Arrivals by state"}
+```{r hexbin_grid, eval= TRUE, fig.width = 7.5, fig.height= 9, fig.fullwidth = TRUE, dpi=300, fig.cap= "Arrivals by state"}
 
 # # Map of all EDN notifications...
 
@@ -752,34 +855,49 @@ g
 ## maps for Refugees and Immigrants, separately
 
 dataR = edn.geo %>% 
-  filter( AlienType == "R") %>%
-  filter( year(ArrivalDate) == .year ) %>%  
-  select(country.name, State) %>%
-  group_by( country.name, State) %>%
+  filter( AlienType == "R" , !is.na(Nationality) ) %>%
+  filter( year(ArrivalDate) == .year, 
+          presentcountry %in% top_refugee_presentcountries ) %>%  
+  select(presentcountry, State) %>%
+  group_by( presentcountry, State) %>%
+  summarize(count= n()) %>%
+  set_names(c('Country', 'id', 'count'))
+
+# dataR by Nationality instead of presentcountry
+dataR = edn.geo %>% 
+  filter( AlienType == "R" , !is.na(Nationality) ) %>%
+  filter( year(ArrivalDate) == .year, 
+          Nationality %in% top_refugee_nationalities ) %>%  
+  select(Nationality, State) %>%
+  group_by( Nationality, State) %>%
   summarize(count= n()) %>%
   set_names(c('Country', 'id', 'count'))
 
 dataI = edn.geo %>% 
   filter( AlienType == "I") %>%
-  filter( year(ArrivalDate) == .year ) %>%  
-  count(State) %>%
-  set_names(c('id', 'count'))
+  filter( year(ArrivalDate) == .year) %>% 
+  filter( presentcountry %in% immigrant_detail_countries ) %>%  
+  select(presentcountry, State) %>%
+  group_by( presentcountry, State) %>%
+  summarize(count= n()) %>%
+  set_names(c('Country', 'id', 'count'))
 
-grid.arrange(hexbin_map(fill_data = dataR, facet = text_size = 2, text_color = 'gray20',
-                        chart_title = "Refugee Arrivals", legend_position = 'top'),
-             hexbin_map(fill_data  = dataI, text_size = 2, text_color = 'gray20', 
-                        chart_title = "Immigrant Notifications",legend_position = 'top'),
-             ncol=2
+
+grid.arrange(
+  
+  hexbin_map(fill_data = dataR, facet = 'Country', 
+           brewer_palatte = "Blues", bins = 6, bin_method =  "pretty",
+           text_size = 2, text_color = 'gray20', 
+           chart_title = "Refugee Arrivals", 
+           legend_position = 'bottom') ,
+  
+  hexbin_map(fill_data  = dataI, facet = 'Country', 
+             brewer_palatte = "Oranges", bins = 6, bin_method =  "pretty",
+                        text_size = 2, text_color = 'gray20' , 
+                        chart_title = "Immigrant Notifications", 
+             legend_position = 'bottom') ,
+  ncol=2
              )
-
-c1 = hexbin_map(fill_data  = dataI, text_size = 2, text_color = 'gray20', 
-                        chart_title = "Immigrant Notifications",legend_position = 'top')
-
-c2 = hexbin_map(fill_data  = dataI, text_size = 2, text_color = 'gray20', 
-                        chart_title = "Immigrant Notifications",legend_position = 'right')
-c = list(c1, c2  )
-
-grid.arrange( c1, c2, ncol=2 )
 
 # ggsave("hexbin.png")
 ```

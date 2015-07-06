@@ -1,0 +1,394 @@
+---
+title: "Annual Summary Data"
+author: "John Painter, IRMHB"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+
+output:
+  pdf_document:
+     toc: true
+     fig_caption: yes
+     keep_tex: yes
+     latex_engine: xelatex
+     
+header-includes: 
+     - \usepackage{setspace}
+     - \usepackage[section]{placeins}
+     - \usepackage{setspace}
+     - \usepackage{relsize}
+     - \usepackage[absolute]{textpos}
+     - \usepackage{sidecap}
+     - \usepackage{units}    
+     - \usepackage{multicol} 
+     - \usepackage{lipsum}   
+     - \renewcommand{\normalsize}{\fontsize{10}{12}\selectfont}
+
+documentclass: memoir
+classoption: nohyper, justified
+---
+
+```{r, echo=FALSE , message=FALSE, cache=FALSE}
+year.start = 2008
+year.end = 2015
+.year = 2014
+# .country = 'Philippines'
+
+library(knitr)
+opts_chunk$set(echo=FALSE,
+               message=FALSE, comment="", tidy=TRUE, results='asis', warning=FALSE, 
+               dev.args=list(type="cairo"),
+               cache = FALSE)
+# library(data.table)
+library(lubridate)
+library(RODBC)
+library(WDI)
+# library(ggplot2)
+# library(scales)
+# library(gridExtra)
+library(tidyr)
+library(dplyr)
+library(xml2)
+```
+
+[//]: # (Comment: the following 11 blocks of code generate all of the data necessary to prepare either a an individual country report or a summary report (for all countries, or a region).  When the cache is cleared, this may take up to 5 minutes to complete. To refress data, clear (e.g. delete) the cache file folder.)
+
+GDP per capita^[Source: World Development Indicators, 2013]
+
+```{r edn}
+
+options(useFancyQuotes=FALSE)
+where = paste0(
+     " WHERE  Alien.Status = 2 and 
+     DateOfArrival >= '", year.start, "-01-01T00:00:00.000'
+     and DateOfArrival <= '", year.end, "-12-31T00:00:00.000' "
+)
+## do not filter based on country
+# " and ExamCountry.Country in (", paste(sQuote(.countries), collapse = ','),")"
+
+edn.sql = "SELECT
+          Alien.AlienID, AlienNumber, DateOfArrival, AlienType, ImmigrantType,
+          BirthCountry, PresentCountryOfResidence as presentcountry, DOB, Sex, 
+          ExamSiteCountry as examcountry, 
+          ClassB, ClassB1Pulmonary, TBActiveClassB,TBInactiveClassB, ClassB2LTBI,
+          ClassB1PulTreatByPanel, TBActiveClassBTreatment, ClassB1PulTreatSmearPos, 
+          ClassB1PulTreatCulturePos, ClassB1PulTreatDSTResult, 
+          Diagnosis 
+     FROM
+     Alien 
+     inner join 
+     AlienDemographics on Alien.AlienID = AlienDemographics.AlienID 
+     inner join 
+     AlienClassification on Alien.AlienID = AlienClassification.AlienID 
+     inner join 
+     AlienExam on Alien.AlienID = AlienExam.AlienID
+     left outer join 
+     AlienWorksheet on Alien.AlienID = AlienWorksheet.AlienID
+"
+
+# edn line list (ednll)
+options(stringsAsFactors = FALSE)
+
+# ODBC connection
+edn <- odbcConnect("EDN")
+ednll = sqlQuery(edn, paste(edn.sql, where))
+close(edn)
+
+# dplyr connection
+# library(DBI)
+# library(RSQLServer)
+# dbConnect(RSQLServer::SQLServer(), server = "sqp-102\\qsrv1" , database = "EDN")
+
+```
+
+```{r capwords_function}
+# function to convert words to Title Case
+capwords <- function(s) {
+    cap <- function(s) paste(toupper(substring(s, 1, 1)),
+                  {s <- substring(s, 2); tolower(s)},
+                             sep = "", collapse = " " )
+    sapply(strsplit(s, split = " "), cap, USE.NAMES = !is.null(names(s)))
+}
+```
+
+# Country lookup: codes and regions...
+
+```{r countries}
+
+
+imp <- odbcConnect("IMP")
+options(stringsAsFactors = FALSE)
+regions <- sqlQuery(imp,"SELECT * FROM tblRegions") %>% 
+     mutate(edn_country_id = BirthCountry,
+            FIPS = BirthCountry,  # add column for FIPS, based on EDN code
+            CountryName = capwords(CountryName)) %>% 
+     select(-BirthCountry) %>% 
+     filter( !(edn_country_id %in% "") , 
+             !grepl("[0123456789]", FIPS) ) %>%  #removes empty rows
+     select(-Notes, -id) %>%
+     droplevels
+close(imp)
+
+# TYPOS/correction to FIPS in regions file:
+#Montenegro from MW to serbia 
+# regions[regions$CountryName == 'Montenegro', 'FIPS'] = "RI"
+
+# For wider use, add lookup for ISo2 and Iso3 
+# EDN is based on fips, but most other programs use ISO codes.
+# example: CZECH REPUBLIC has edn code EZ but fips is CZ.  edn CZ is CZECHOSLOVAKIA (OLD)
+# get codes from countries of world (COW)
+
+
+## REFERNCE for FIPS and ISO codes.  Several sites available...
+
+# 1. COW
+# url = 'http://opengeocode.org/cude/download.php?file=/home/fashions/public_html/opengeocode.org/download/cow.txt'
+# lines1 <- readLines("cow.txt",warn=FALSE) 
+# colnames = unlist(strsplit(lines1[29], ";") ) 
+# cow = lines1[30:278] %>% sapply(., function(ch) unlist(strsplit(ch, ";"))) %>%
+#      gsub("^\\s+|\\s+$", "", .)  # trim white space
+# dimnames(cow) = NULL 
+# cow = cow %>% t %>% as.data.frame
+# cow = cow[, c(1:2,4:5)]
+# names(cow) =  c('ISO2', 'ISO3', 'FIPS', 'Name')
+# 
+# # Make changes to downloaded file (googled codes for country codes that did not look correct)
+# # bangladesh: change from BQ to BG
+# cow[cow$Name == 'Bangladesh', 'FIPS'] = "BG"
+# # czech rep from EZ to CZ
+# cow[cow$Name == 'Czech Republic', 'FIPS'] = "CZ"
+# #Occupied Palestinian Territory from "" to PN
+# cow[cow$Name == 'Occupied Palestinian Territory', 'FIPS'] = "PN"
+# #Palau from PS to PW
+# cow[cow$Name == 'Palau', 'FIPS'] = "PW"
+# #Sounth Sudan from "" to SS
+# cow[cow$Name == 'South Sudan', 'FIPS'] = "SS"
+
+
+# 2. cloford.com (preferred)
+# url ="http://cloford.com/resources/codes/index.htm" 
+# library(XML)
+# tables <- readHTMLTable(url, header = TRUE) # Last donwloaded July, 2015
+# table_not_null = !unlist(lapply(tables, function(t) is.null(t)))
+# tables = tables[table_not_null]
+# # inspect tables
+# # str(tables)
+# # only want middle two tables
+# fips =bind_rows( tables[[2]], tables[[3]])
+
+# #Occupied Palestinian Territory from "" to PN
+# fips[fips$Country == 'Palestine', 'FIPS'] = "PN"
+# #Yugoslavia "" to YO
+# fips[fips$Country == 'Yugoslavia*', 'FIPS'] = "YO"
+
+# save(fips, file="fips.rda")
+
+load("fips.rda")
+
+countries = regions %>% full_join(fips, by='FIPS') %>% filter(!is.na(CountryName))  %>%
+  mutate( Country = ifelse(is.na(Country), CountryName, Country), 
+          DHSCountryName = ifelse(is.na(DHSCountryName), CountryName, DHSCountryName), 
+          WRAPS_nationality = ifelse(is.na(WRAPS_nationality), CountryName, WRAPS_nationality)
+          )
+
+save(countries, file = 'countries.rda')
+
+# View(countries)
+```
+
+```{r wraps}
+# use wraps data to gather refugees with same nationality
+
+imp <- odbcConnect("IMP")
+#sqlTables(imp, tableType = "TABLE") #to check if DHS data is in IMPd
+
+where = paste0(
+     " WHERE ArrivalDate >= '", year.start, "-01-01T00:00:00.000'
+       and ArrivalDate <= '", year.end, "-12-31T00:00:00.000' "
+)
+
+wraps <- sqlQuery(imp, paste("SELECT AlienNumber, Nationality FROM WRAPS", where) )
+wraps.countryCode = sqlQuery(imp, "SELECT NationalityCode, NationalityName FROM WRAPS_Nationality" )
+
+# get full name for nationality
+wraps = merge(wraps, wraps.countryCode, by.x='Nationality', by.y='NationalityCode', all.x = TRUE )
+wraps = droplevels(wraps)
+
+wraps = wraps %>% mutate( Nationality = countries[match(NationalityName, countries$WRAPS_nationality), "CountryName"] )
+
+close(imp)
+
+```
+
+```{r edn_mutate}
+# calculate age at arrival, tb cases, mdr, and filter for >=15 years age
+
+
+## countries table has 2-digit FIPS code in BirthCountry, examcountry, and presentcountry.
+## match ednll with countries to get full name
+
+ednll = ednll %>% mutate( examcountry = countries[match(examcountry, countries$FIPS), "CountryName"] )
+ednll = ednll %>% mutate( presentcountry = countries[match(presentcountry, countries$FIPS), "CountryName"] )
+ednll = ednll %>% mutate( BirthCountry = countries[match(BirthCountry, countries$FIPS), "CountryName"] )
+
+ednll= ednll %>%  
+          dplyr::mutate( dataSource = 'Visa Exam' , 
+                         year = year(DateOfArrival) )
+
+ednll= ednll %>%  
+          dplyr::mutate( age = new_interval(as.POSIXct(DOB), as.POSIXct(DateOfArrival)) / 
+                              duration(num = 1, units = "years")  ,
+                         
+                         ageYY = floor(age),
+                         
+                         agegroup = cut(ageYY,
+                                        include.lowest = TRUE, right=FALSE,
+                                        breaks = c(0, 2, 15, 45, 65, Inf),
+                                        labels = c('0-1'= '0-1', '2-14' = '2-14', '15-44' = '15-44', 
+                                                      '45-64' = '45-64', '>=65' = '65+'),
+                                        ordered = TRUE) 
+                         ) 
+
+                         # before merge with wraps, change edn aliennumber to integer--same as in wraps
+ednll= ednll %>%  
+          dplyr::mutate( AlienNumber = as.integer( gsub('-', '', AlienNumber)) ) 
+                         
+ednll= ednll %>%  
+          dplyr::mutate( abnCXR = 
+                              ClassB1Pulmonary == 1 |
+                              TBActiveClassB == 1 |
+                              TBInactiveClassB == 1) 
+                         
+ednll= ednll %>%  
+          dplyr::mutate(  ClassBTB = 
+                              ClassB1Pulmonary == 1 |
+                              ClassB2LTBI == 1 |
+                              TBActiveClassB == 1 |
+                              TBInactiveClassB == 1  )
+                         
+ednll= ednll %>%  
+          dplyr::mutate( edntbcase =  
+                              TBActiveClassBTreatment %in% c(1,2) | 
+                              ClassB1PulTreatSmearPos == 1 | 
+                              ClassB1PulTreatCulturePos == 1 | 
+                              ClassB1PulTreatByPanel == 0 | 
+                              Diagnosis == 3 ,
+
+                         edntbcase = ifelse(edntbcase %in% TRUE, 1, 0)
+          )
+                         
+ednll= ednll %>%  
+          dplyr::mutate(  Overseas_TB_Case = 
+                              TBActiveClassBTreatment==1 | 
+                              ClassB1PulTreatSmearPos==1 | 
+                              ClassB1PulTreatCulturePos==1 | 
+                              ClassB1PulTreatByPanel==0  ,
+                         
+                         Overseas_TB_Case = ifelse( Overseas_TB_Case %in% TRUE, 1, 0)
+          )
+                         
+ ednll= ednll %>%  
+          dplyr::mutate( Domestic_TB_Case = ifelse( Diagnosis == 3 , 1 , 0 ) )   
+
+# join WRAPS
+ednll = ednll %>%  
+     dplyr::left_join(wraps, by = 'AlienNumber') %>%
+     dplyr::mutate( Nationality = ifelse( is.na(NationalityName), NA, 
+                            countries[match(NationalityName, countries$WRAPS_nationality), 
+                                      "CountryName"] )  
+                    ) 
+
+# remove all unused factor levels (e.g. countries not in mid east)
+ednll =  droplevels(ednll) 
+
+# group by all variables except AlienID , AlienNumber, DateOfArrival, DOB
+edn_counts = ednll %>%
+      select(-AlienID, -AlienNumber, -DateOfArrival, - age, -ageYY, -NationalityName) %>%
+      dplyr::group_by( AlienType,ImmigrantType, Sex, year, agegroup,
+                       BirthCountry, examcountry, presentcountry, Nationality,
+                       ClassB1PulTreatByPanel,TBActiveClassBTreatment,
+                       ClassB1PulTreatSmearPos,ClassB1PulTreatCulturePos,ClassB1PulTreatDSTResult,
+                       ClassB, ClassB1Pulmonary, TBActiveClassB,TBInactiveClassB, ClassB2LTBI,
+                       abnCXR, ClassBTB, 
+                       Diagnosis,
+                       dataSource, 
+                       edntbcase, Overseas_TB_Case, Domestic_TB_Case
+                       ) %>%
+     summarise( count = n() )
+
+save(edn_counts, file = 'edn_counts.rda')
+```
+
+```{r dhs}
+imp <- odbcConnect("IMP")
+
+#DHSFYLPR
+dhs <- sqlQuery(imp,"SELECT * FROM DHSFYLPR")
+close(imp)
+
+dhs = dhs %>%
+  mutate(year = FiscalYear,
+            Arrivals = round(Count) , 
+            AlienType = TypeOfLPRAdmissionStatus,
+            agegroup = factor(AgeCat, 
+                              levels = c('0-1', '2-14', '15-44', '45-64', '>=65'),
+                              labels = c('0-1'= '0-1', '2-14' = '2-14', '15-44' = '15-44', 
+                                         '45-64' = '45-64', '>=65' = '65+'),
+                              ordered = TRUE),
+        Country =  countries[match(CountryOfBirth, countries$DHSCountryName), "CountryName"]  )
+
+dhs. = dhs %>%
+     dplyr::group_by(year, Country, AlienType, agegroup, Sex) %>%
+     dplyr::summarize(Arrivals = sum(Arrivals))
+
+dhs.
+
+save(dhs., file = 'dhs.rda')
+
+dhs_max_year = max(dhs$year)
+```
+
+```{r wdi, cache=TRUE}
+
+# get list of indicators via WDIcache()
+# WDIsearch(string = "gdp", field = "indicator", short = TRUE, cache = NULL)
+
+# "http://databank.worldbank.org/data/download/WDI_csv.zip 
+# wdi.country = read.csv("WDI/WDI_Country.csv") %>%
+#      mutate( ISO3 = Country.Code, Country = Short.Name) %>%
+#      select(Country.Code, Short.Name, Table.Name, X2.alpha.code, Region, ISO3) %>%
+#      filter(!(Region %in% "")) %>% droplevels 
+# 
+# nwc = wdi.country %>% anti_join(countries, by = 'ISO3')
+
+library(data.table)
+wdi = fread("WDI/WDI_Data.csv", header = TRUE, showProgress = FALSE) %>%
+     as.data.frame(wdi) %>% 
+     select(1:4,58) %>%
+      setnames(c('Country.Name','ISO3', 'Indicator.Name', 'Indicator.Code', 'yr2013'))
+
+wdi = wdi %>% mutate(Country = countries[match(ISO3, countries$ISO3), "CountryName"] ) 
+
+```     
+
+```{r pop, cache=TRUE}
+# wdi population total is "SP.POP.TOTL"
+
+world_population = wdi %>% filter(Country.Name == "World" & Indicator.Code == "SP.POP.TOTL") %>%
+                  select(yr2013) %>% as.numeric() 
+
+population = filter(wdi, Indicator.Code == "SP.POP.TOTL") %>% 
+     droplevels %>%
+     mutate( percentWorld = yr2013 / world_population  ) %>%
+     arrange(-yr2013)
+
+
+save(population, file = 'population.rda')
+
+```
+
+```{r gdppc, cache=TRUE}
+# gdp in current us dollars per capita = "NY.GDP.PCAP.PP.CD"
+gdppc = filter(wdi, Indicator.Code == "NY.GDP.PCAP.PP.CD") %>%  arrange(-yr2013)
+
+
+save(gdppc, file = 'gdppc.rda')
+```
