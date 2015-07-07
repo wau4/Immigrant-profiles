@@ -363,17 +363,17 @@ e = edn_counts %>%
              AlienType %in% alien_type , 
            Overseas_TB_Case == 1 ) %>%
      as.data.frame() %>%
-     mutate( AlienType = factor(AlienType, 
-                                levels = c('I', 'R'), 
-                                labels =  c('New Immigrant Arrivals', 'R') ) 
-             ) %>%
-     group_by(AlienType, year) %>% 
+     group_by(AlienType, year, presentcountry) %>% 
      summarize(count = sum(count, na.rm=TRUE))
 
 # combine tables
 overseas_tb = inner_join(e %>% as.data.frame() %>% mutate( AlienType = as.character(AlienType)), 
-                      yearly %>% filter(Country == .country) %>% as.data.frame() %>% 
-                        mutate( AlienType = as.character(AlienType)),
+                      yearly  %>% as.data.frame() %>% 
+                        mutate( AlienType = as.character(
+                          factor(AlienType, levels = c('New Immigrant Arrivals','Refugees'),
+                              labels = c('New Immigrant Arrivals' = 'I', 'Refugees' = 'R')))
+                        ) %>%
+                        filter(Country == .country,  AlienType %in% alien_type ),
                       by = c("AlienType", "year")) %>%
      mutate( 
                TBrate =  count.x * 100000 / count.y

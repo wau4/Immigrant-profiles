@@ -17,6 +17,7 @@ header-includes:
      - \newcommand{\subsectionbreak}{\clearpage}
      - \usepackage{fancyhdr}
      - \pagestyle{fancy}
+     - \usepackage[labelformat=empty]{caption}
      - \linespread{1.3}
      - \renewcommand{\textfraction}{0.05}
      - \renewcommand{\topfraction}{0.8}
@@ -34,7 +35,7 @@ year.end = 2015
 .year = 2014
 
 include_child_documents = TRUE
-topN = 4
+topN = 5
 
 library(knitr)
 opts_chunk$set(echo=FALSE,
@@ -119,19 +120,20 @@ The Centers for Disease Control (CDC) determines the medical requirements for im
 #   present country for immigrants, 
 #   birth country for dhs.  This deserves a note...
 
-dhs. = dhs. %>% filter( year<=.year)
+dhs. = dhs. %>% filter( year<=.year) %>% mutate(Nationality = NA)
 
 refugees = edn_counts %>%
      filter(AlienType == 'R' & year<=.year) %>%
-     group_by(Nationality, year, agegroup, Sex) %>%
+     group_by(Nationality, presentcountry, year, agegroup, Sex) %>%
      summarize(Arrivals = sum(count)) %>%
      mutate(AlienType = 'R', Country = Nationality) %>%
      select(year, Nationality, AlienType, agegroup, Sex, Arrivals) %>%
   filter(year >= year.start & year <= year.end)
 
-ClassbImmigrant = edn_counts %>%
+ClassbImmigrant = edn_counts %>% as.data.frame() %>%
+     mutate( Nationality = NA ) %>%
      filter(AlienType == 'I' & year<=.year) %>%
-     group_by(presentcountry, year, agegroup, Sex) %>%
+     group_by(Nationality, presentcountry, year, agegroup, Sex) %>%
      summarize(Arrivals =sum(count)) %>%
      mutate(AlienType = 'B') %>%
      select(year, presentcountry, AlienType, agegroup, Sex, Arrivals) %>%
@@ -140,9 +142,9 @@ ClassbImmigrant = edn_counts %>%
 
 aliens = rbind(dhs., 
                ClassbImmigrant %>% rename(Country = presentcountry), 
-               refugees %>% rename(Country = Nationality) ) %>% as.data.frame() %>%
+               refugees %>% rename(Country = presentcountry) ) %>% as.data.frame() %>%
      filter(year >= year.start & year <= year.end) %>%
-     group_by(year, AlienType, Country, agegroup, Sex) %>%
+     group_by(year, AlienType, Nationality, Country, agegroup, Sex) %>%
      summarize( count = sum(Arrivals)) %>% 
      left_join(countries, by = c("Country" = "CountryName") )
 
