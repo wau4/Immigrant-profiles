@@ -30,7 +30,6 @@ classoption: nohyper, justified
 year.start = 2008
 year.end = 2015
 .year = 2014
-# .country = 'Philippines'
 
 library(knitr)
 opts_chunk$set(echo=FALSE,

@@ -354,7 +354,7 @@ grid.arrange(
 ## Tuberculosis Screening, `r .country`
 
 
-```{r , eval = TRUE, fig.height= 1.5, fig.width= 6.5, dpi=300, fig.cap= "Number of pulmonary TB cases diagnosed at **overseas** exam.  Points labeled with number of cases."}
+```{r , eval = TRUE, fig.height= 1.5, fig.width= 7.5, dpi=300, fig.cap= "Number of pulmonary TB cases diagnosed at **overseas** exam.  Points labeled with number of cases."}
 
 # get counts of those with tb
 e = edn_counts %>% 
@@ -397,7 +397,7 @@ g
 ```
 
 
-```{r , eval = TRUE, fig.height= 2.25,  fig.width= 6.5, dpi=300, fig.cap= "Oversease TB screening by agegroup. (Data are from year in which most recent DHS denominator data was available.)"}
+```{r , eval = TRUE, fig.height= 2.25,  fig.width= 7.5, dpi=300, fig.cap= "Oversease TB screening by agegroup. (Data are from year in which most recent DHS denominator data was available.)"}
 
 tb_age = edn_counts %>% as.data.frame() %>%
      filter( year == dhs_max_year) %>%
@@ -451,7 +451,7 @@ g
 ```
 
 
-```{r , eval = TRUE, fig.height= 2,  fig.width= 6.5, dpi=300, fig.cap= "Percent of CLass B TB diagnosed with TB disease at **domestic** exam.  Points labeled with number of cases."}
+```{r , eval = TRUE, fig.height= 2,  fig.width= 7.5, dpi=300, fig.cap= "Percent of CLass B TB diagnosed with TB disease at **domestic** exam.  Points labeled with number of cases."}
 
 domestic_tb = edn_counts %>% 
      select( presentcountry, AlienType, year, Domestic_TB_Case, TBActiveClassB, TBInactiveClassB, ClassB2LTBI, ClassB1Pulmonary, count) %>% 
@@ -516,7 +516,7 @@ g
 ```
 
 
-```{r , eval = FALSE, fig.height= 2,  fig.width= 6.5, dpi=300, fig.cap= "Percent with abnormal chest radiograph"}
+```{r , eval = FALSE, fig.height= 2,  fig.width= 7.5, dpi=300, fig.cap= "Percent with abnormal chest radiograph"}
 
 # get counts of those with abn cxr
 e = edn_counts %>% 

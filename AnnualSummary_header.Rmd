@@ -138,23 +138,27 @@ ClassbImmigrant = edn_counts %>%
   filter(year >= year.start & year <= year.end)
 
 
-yearly = rbind(dhs., 
+aliens = rbind(dhs., 
                ClassbImmigrant %>% rename(Country = presentcountry), 
                refugees %>% rename(Country = Nationality) ) %>% as.data.frame() %>%
      filter(year >= year.start & year <= year.end) %>%
-     group_by(year, AlienType, Country) %>%
+     group_by(year, AlienType, Country, agegroup, Sex) %>%
      summarize( count = sum(Arrivals)) %>% 
      left_join(countries, by = c("Country" = "CountryName") )
 
 # NB: the next statement seems to cause a crash when using %>% with above.  Quick fix to leave as separate line of code...
-yearly$AlienType = factor(yearly$AlienType, levels = c('New Arrival', 'AOS', 'B', 'R'),
+aliens$AlienType = factor(aliens$AlienType, levels = c('New Arrival', 'AOS', 'B', 'R'),
                               labels = c('New Arrival' = 'New Immigrant Arrivals',
                                          'AOS' = 'Status Adjusters', 
                                          'B' = 'Class B New Immigrants',
                                          'R' = 'Refugees'))
+
+# summarize over all agegroups and sexes for yearly totals
+yearly = aliens %>% group_by(year, AlienType, Continent, Country) %>% summarise(count = sum(count))
+
 # str(yearly)
 
-save(yearly, file = "yearly.rda")
+save(aliens, yearly, file = "yearly.rda")
 
 # Because scale is quite greater for AOS and new arrivals, make separate plots, then print together
 aos_new = ggplot(data = yearly %>% 
@@ -316,11 +320,11 @@ NB: Age and Sex data available from most recent DHS yearbook data, `r max(dhs.$y
 
 dhs_max_year = max(dhs.$year)
 
-a = dhs. %>%
+a = aliens %>%
       filter(year == min(dhs_max_year, .year)) %>%
-     select(Country, year, Arrivals, Sex, agegroup, AlienType) %>%
+     select(Country, year, count, Sex, agegroup, AlienType) %>%
      group_by(year, AlienType, agegroup, Sex) %>%
-     summarize(Arrivals = sum(Arrivals)) %>%
+     summarize(Arrivals = sum(count)) %>%
      mutate( Arrivals = ifelse(Sex %in% 'F', -1*Arrivals, Arrivals),
              percent.male = round( 
                           sum(Arrivals * (Sex %in% "M"))*100/sum(abs(Arrivals) * (Sex %in% c("F", "M")) ) 
@@ -336,16 +340,15 @@ v = a %>%
 av = left_join(a,v, by=c('year', 'AlienType', 'agegroup'))     
 
 ```
- 
-# Immigrants
+
 
 ```{r tornado_plot_immirants, fig.height = 2, dpi=300 }
 
 text.scale = 3
 
-# trans_new("abs_trans", function(x) abs(x), function(x) abs(x), format = comma, domain = c(-Inf, Inf))
+# av %>% count(AlienType)
 
-data = av %>% filter(AlienType %in% 'New Arrival')
+data = av %>% filter(AlienType %in% 'New Immigrant Arrivals')
 max.count=max(abs(data$Arrivals))
 
        ggTornado = 
@@ -474,6 +477,143 @@ grid.arrange(empty, ggTornado.male, ggTornado.age, ggTornado, ncol=2, nrow=2,
 ```
 
 
+```{r tornado_plot_refugees, fig.height = 2, dpi=300 }
+
+text.scale = 3
+
+# av %>% count(AlienType)
+
+data = av %>% filter(AlienType %in% 'Refugees')
+max.count=max(abs(data$Arrivals))
+
+       ggTornado = 
+       ggplot(data, aes(x=agegroup, y=Arrivals, fill=Sex)) + 
+            geom_bar(stat="identity", position="identity", width = .95) + 
+                   
+            # Percent male label  # show value on male side only
+            geom_text(aes(
+                         label = ifelse(Sex %in% "M"  , 
+                                         paste(" ", percent.male, "% male", sep=""),
+                                         ""
+                                         ),
+                         hjust = ifelse(visa.percent>33, 1, 0),
+                         vjust= 0.5  ,
+                         color = ifelse(visa.percent>33, 'white', 'black'),
+                          y=Arrivals
+                          ),
+                      size= text.scale - 1 
+                      ) +
+     
+#             geom_text(aes(label = ifelse(Sex %in% "M" & visa.percent>20, 
+#                                          " male  ",
+#                                          ""
+#                                          ),
+#                           hjust = ifelse(visa.percent>33, 1, 0),
+#                           vjust= ifelse(visa.percent>33, 0, 1 ),
+#                           color = ifelse(visa.percent>33, 'white', 'black'),
+#                           y=Arrivals
+#                           ), 
+#                       size = text.scale 
+#                       ) +
+            
+            scale_size_continuous(range=c(4,8), guide=FALSE) + 
+            scale_color_manual(values=c("black", "white"), guide=FALSE) +
+            scale_y_continuous( labels = abs , #  comma format for populations
+                                limits = c( -1*max(abs(data$Arrivals)), max(abs(data$Arrivals)) ) 
+                                ) + 
+            # scale_x_discrete(breaks = NULL) + # removes grid lines
+            scale_fill_manual(values=c("red", "blue", "grey"), guide=FALSE) + 
+            xlab("Age\n") +
+            ylab(paste("\nRefugee Arrivals,", .year)) + 
+            coord_flip() + 
+            theme( 
+                    plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
+                    axis.title.x = element_text(face="bold", size=10),
+                   axis.title.y = element_text(face="bold", size=10),
+                   axis.text.x = element_text(face="bold", size=8),
+                   axis.text.y = element_text(face="bold", size=8),
+                   axis.ticks = element_blank(),
+                   panel.background =  element_rect(fill = NA, colour = NA), 
+                   panel.border =      element_rect(fill = NA, colour=NA), 
+                   panel.grid.major.y =  element_blank(),
+                   panel.grid.major.x =  element_line(colour = 'grey', size = 0.2),
+                   panel.grid.minor =  element_line(colour = NA, size = 0.5)
+            ) 
+
+ggTornado.age = data %>% group_by(agegroup) %>% summarize(Arrivals = sum(abs(Arrivals))) %>% 
+               ggplot(aes(x=agegroup, y=Arrivals/sum(Arrivals))) + 
+               geom_histogram(stat="identity", position="identity", width = .95) +
+               geom_text( aes(label = percent( round( abs( Arrivals/sum(abs(Arrivals)) ), 2) ),
+                              y=Arrivals/sum(abs(Arrivals))/2 ,
+                              color = ifelse( abs( Arrivals/sum(abs(Arrivals)) )>.25 , "white", "black"),
+                              hjust = ifelse( abs( Arrivals/sum(abs(Arrivals)) )>.25 , 0.5, -1)
+                              ),
+                         vjust=0.5, size = text.scale 
+                         )+  
+               scale_color_manual(values=c("black", "white"), guide=FALSE) +
+               ylab("\n  ") + 
+               xlab("\n  ") + 
+               coord_flip() + 
+                    theme_bw() +
+                    theme( 
+                      plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
+                      axis.title.y = element_blank(),
+                        axis.text.y = element_blank() ,
+                        axis.title.x = element_text(face="bold", size=10),
+                        axis.text.x = element_text( face="bold", size=8, color = 'white') ,
+                        axis.ticks = element_blank(),
+                        panel.background =  element_rect(fill = NA, colour = NA), 
+                        panel.border =      element_rect(fill = NA, colour=NA), 
+                        panel.grid.major =  element_line(colour = NA, size = 0.2),
+                        panel.grid.minor =  element_line(colour = NA, size = 0.5)
+                 ) 
+ 
+
+
+ggTornado.male = data %>% group_by(Sex) %>% summarize(Arrivals = sum(Arrivals)) %>% 
+               filter(Sex %in% c('F', 'M')) %>%
+               ggplot(aes(x= "Sex", y=Arrivals , fill = Sex)) + 
+               geom_bar(stat="identity", position="identity", width = .95) +
+               geom_text( aes(label = percent( round( abs( Arrivals/sum(abs(Arrivals)) ), 2) ),
+                              y=Arrivals/2 ),
+                         hjust = 0.5, vjust=0.5 , x = 1, color="white",
+                         size = text.scale
+                         ) +  
+               annotate( 'text', label = 'Female', y= -max(-1*data$Arrivals) , x = 0 , 
+                         color="black", hjust=0.5, vjust=-.1, size = text.scale) +  
+               annotate( 'text', label = 'Male', y= max(data$Arrivals) , x = 0 , 
+                         color="black", hjust=0.5, vjust=-.1, size = text.scale) + 
+               scale_y_continuous(labels = percent) + 
+               scale_fill_manual(values=c("red", "blue", "grey"), guide=FALSE) +
+               ylab("\n  ") + 
+               xlab("\n  ") + 
+               coord_flip() +
+               theme_bw( ) +
+               theme( 
+                  plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
+                  axis.title.x = element_blank(),
+                   axis.title.y = element_text(face="bold", size=8),
+                   axis.ticks = element_blank(),
+                   axis.text.x =  element_blank(),
+                   axis.text.y =  element_text( face="bold", size=8, color = 'black'),
+                   panel.background =  element_rect(fill = NA, colour = NA), 
+                   panel.border =      element_rect(fill = NA, colour=NA), 
+                   panel.grid.major =  element_line(colour = NA, size = 0.2),
+                   panel.grid.minor =  element_line(colour = NA, size = 0.5)
+            ) 
+
+empty = grob()
+
+grid.arrange(empty, ggTornado.male, ggTornado.age, ggTornado, ncol=2, nrow=2, 
+             widths=c(2,6), heights=c(2,6))
+
+# grid.arrange(ggTornado, ggTornado.age, ncol=2, nrow=1, widths=c(6, 1))
+
+```
+ 
+# Immigrants
+
+
 
 ```{r top_immigrant_table, fig.height = 2, dpi=300, fig.cap= "Countries with Largest Number of Newly Arriving Class B Notifications"}
 
@@ -488,15 +628,12 @@ ClassbImmigrant = edn_counts %>%
     mutate(Arrivals = comma(Arrivals)) 
 
 immigrant_detail_countries = ClassbImmigrant$Country
-countries = immigrant_detail_countries
+.countries = immigrant_detail_countries
 
-kable(ClassbImmigrant)
+# kable(ClassbImmigrant)
 
-# tbl <- tableGrob(ClassbImmigrant)
-# grid.arrange(tbl,
-#              nrow=1,
-#              as.table=TRUE,
-#              heights=c(4,6))
+tbl <- tableGrob(ClassbImmigrant)
+grid.arrange(tbl)
 
 
 
@@ -511,14 +648,14 @@ out = NULL
 if (include_child_documents){
 
 
-if (!exists('countries')) countries = c('Mexico', 'China')
+if (!exists('countries')) .countries = c('Mexico', 'China')
 
 alien_type =  "I"
 brewer.palattes = ifelse( alien_type ==  "I", "Oranges" , "Blues" )
 brewer.palatte = ifelse( alien_type ==  "I", "Orange" , "Blue" )
 
-for (i in 1:length(countries)) {
-  .country = countries[i]
+for (i in 1:length(.countries)) {
+  .country = .countries[i]
   out = c(out, knit_child('AnnualSummary_child.Rmd') )
 }
 
@@ -537,173 +674,39 @@ close(fileConn)
 
 - TODO: cuba versus all others.
 
-```{r tornado_plot_refugees, fig.height = 2, dpi=300 }
-
-text.scale = 3
-
-# trans_new("abs_trans", function(x) abs(x), function(x) abs(x), format = comma, domain = c(-Inf, Inf))
-
-data = av %>% filter(AlienType %in% 'New Arrival')
-max.count=max(abs(data$Arrivals))
-
-       ggTornado = 
-       ggplot(data, aes(x=agegroup, y=Arrivals, fill=Sex)) + 
-            geom_bar(stat="identity", position="identity", width = .95) + 
-                   
-            # Percent male label  # show value on male side only
-            geom_text(aes(
-                         label = ifelse(Sex %in% "M"  , 
-                                         paste(" ", percent.male, "% male", sep=""),
-                                         ""
-                                         ),
-                         hjust = ifelse(visa.percent>33, 1, 0),
-                         vjust= 0.5  ,
-                         color = ifelse(visa.percent>33, 'white', 'black'),
-                          y=Arrivals
-                          ),
-                      size= text.scale - 1 
-                      ) +
-     
-#             geom_text(aes(label = ifelse(Sex %in% "M" & visa.percent>20, 
-#                                          " male  ",
-#                                          ""
-#                                          ),
-#                           hjust = ifelse(visa.percent>33, 1, 0),
-#                           vjust= ifelse(visa.percent>33, 0, 1 ),
-#                           color = ifelse(visa.percent>33, 'white', 'black'),
-#                           y=Arrivals
-#                           ), 
-#                       size = text.scale 
-#                       ) +
-            
-            scale_size_continuous(range=c(4,8), guide=FALSE) + 
-            scale_color_manual(values=c("black", "white"), guide=FALSE) +
-            scale_y_continuous( labels = abs , #  comma format for populations
-                                limits = c( -1*max(abs(data$Arrivals)), max(abs(data$Arrivals)) ) 
-                                ) + 
-            # scale_x_discrete(breaks = NULL) + # removes grid lines
-            scale_fill_manual(values=c("red", "blue", "grey"), guide=FALSE) + 
-            xlab("Age\n") +
-            ylab("\nImmigrant Arrivals, 2013") + 
-            coord_flip() + 
-            theme( 
-                    plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
-                    axis.title.x = element_text(face="bold", size=10),
-                   axis.title.y = element_text(face="bold", size=10),
-                   axis.text.x = element_text(face="bold", size=8),
-                   axis.text.y = element_text(face="bold", size=8),
-                   axis.ticks = element_blank(),
-                   panel.background =  element_rect(fill = NA, colour = NA), 
-                   panel.border =      element_rect(fill = NA, colour=NA), 
-                   panel.grid.major.y =  element_blank(),
-                   panel.grid.major.x =  element_line(colour = 'grey', size = 0.2),
-                   panel.grid.minor =  element_line(colour = NA, size = 0.5)
-            ) 
-
-ggTornado.age = data %>% group_by(agegroup) %>% summarize(Arrivals = sum(abs(Arrivals))) %>% 
-               ggplot(aes(x=agegroup, y=Arrivals/sum(Arrivals))) + 
-               geom_histogram(stat="identity", position="identity", width = .95) +
-               geom_text( aes(label = percent( round( abs( Arrivals/sum(abs(Arrivals)) ), 2) ),
-                              y=Arrivals/sum(abs(Arrivals))/2 ,
-                              color = ifelse( abs( Arrivals/sum(abs(Arrivals)) )>.25 , "white", "black"),
-                              hjust = ifelse( abs( Arrivals/sum(abs(Arrivals)) )>.25 , 0.5, -1)
-                              ),
-                         vjust=0.5, size = text.scale 
-                         )+  
-               scale_color_manual(values=c("black", "white"), guide=FALSE) +
-               ylab("\n  ") + 
-               xlab("\n  ") + 
-               coord_flip() + 
-                    theme_bw() +
-                    theme( 
-                      plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
-                      axis.title.y = element_blank(),
-                        axis.text.y = element_blank() ,
-                        axis.title.x = element_text(face="bold", size=10),
-                        axis.text.x = element_text( face="bold", size=8, color = 'white') ,
-                        axis.ticks = element_blank(),
-                        panel.background =  element_rect(fill = NA, colour = NA), 
-                        panel.border =      element_rect(fill = NA, colour=NA), 
-                        panel.grid.major =  element_line(colour = NA, size = 0.2),
-                        panel.grid.minor =  element_line(colour = NA, size = 0.5)
-                 ) 
- 
-
-
-ggTornado.male = data %>% group_by(Sex) %>% summarize(Arrivals = sum(Arrivals)) %>% 
-               filter(Sex %in% c('F', 'M')) %>%
-               ggplot(aes(x= "Sex", y=Arrivals , fill = Sex)) + 
-               geom_bar(stat="identity", position="identity", width = .95) +
-               geom_text( aes(label = percent( round( abs( Arrivals/sum(abs(Arrivals)) ), 2) ),
-                              y=Arrivals/2 ),
-                         hjust = 0.5, vjust=0.5 , x = 1, color="white",
-                         size = text.scale
-                         ) +  
-               annotate( 'text', label = 'Female', y= -max(-1*data$Arrivals) , x = 0 , 
-                         color="black", hjust=0.5, vjust=-.1, size = text.scale) +  
-               annotate( 'text', label = 'Male', y= max(data$Arrivals) , x = 0 , 
-                         color="black", hjust=0.5, vjust=-.1, size = text.scale) + 
-               scale_y_continuous(labels = percent) + 
-               scale_fill_manual(values=c("red", "blue", "grey"), guide=FALSE) +
-               ylab("\n  ") + 
-               xlab("\n  ") + 
-               coord_flip() +
-               theme_bw( ) +
-               theme( 
-                  plot.margin=unit(c(0,0,0,0),"cm"), #added space top, right, bottom, left
-                  axis.title.x = element_blank(),
-                   axis.title.y = element_text(face="bold", size=8),
-                   axis.ticks = element_blank(),
-                   axis.text.x =  element_blank(),
-                   axis.text.y =  element_text( face="bold", size=8, color = 'black'),
-                   panel.background =  element_rect(fill = NA, colour = NA), 
-                   panel.border =      element_rect(fill = NA, colour=NA), 
-                   panel.grid.major =  element_line(colour = NA, size = 0.2),
-                   panel.grid.minor =  element_line(colour = NA, size = 0.5)
-            ) 
-
-empty = grob()
-
-grid.arrange(empty, ggTornado.male, ggTornado.age, ggTornado, ncol=2, nrow=2, 
-             widths=c(2,6), heights=c(2,6))
-
-# grid.arrange(ggTornado, ggTornado.age, ncol=2, nrow=1, widths=c(6, 1))
-
-```
-
 - TODO: compare the age distribution to other refugee populations...
 
 ```{r top_refugee_table, fig.height = 2, dpi=300, fig.cap= "Top `r topN` Countries with Largest Number of Newly Arriving Class B Notifications"}
 
-top_n_nationalities = edn_counts %>% as.data.frame() %>%
-     filter(AlienType == 'R', !is.na(Nationality)) %>%
-     filter(year == .year) %>%
-     group_by(Nationality) %>%
-     summarize(Arrivals = sum(count)) %>% 
-     arrange( desc(Arrivals)) %>% 
-     top_n( topN ) %>% 
-     select(Nationality) %>% unlist()
-
 refs = edn_counts %>% 
      filter(AlienType == 'R', !is.na(Nationality)) %>%
-     filter(year == .year, Nationality %in% top_n_nationalities ) %>%
+     filter(year == .year) %>%
      group_by(Nationality, presentcountry) %>%
-    rename(`Country of Origin` = presentcountry) %>%
-     summarize(Arrivals = sum(count)) %>% as.data.frame() %>%
-    arrange( desc(Arrivals)) %>% 
-    mutate(Arrivals = comma(Arrivals)) 
+     rename(`Country of Origin` = presentcountry) %>%
+     summarize(Arrivals = sum(count))
 
-top_refugee_presentcountries = unique(refs[, "Country of Origin"])
-top_refugee_nationalities = unique(refs[, "Nationality"])
+ref_countries = refs %>% group_by(`Country of Origin`) %>% 
+    summarize(Arrivals = sum(Arrivals)) %>%
+    as.data.frame() %>%
+    arrange( desc(Arrivals)) 
 
-countries = top_refugee_presentcountries
+ref_nationalities = refs %>% group_by(Nationality) %>% 
+    summarize(Arrivals = sum(Arrivals))%>%
+    as.data.frame() %>%
+    arrange( desc(Arrivals)) 
 
-kable(refs[1:20, ])
+top_refugee_presentcountries = ref_countries %>% top_n( topN ) %>% select(`Country of Origin`)
 
-# tbl <- tableGrob(refs[1:20, ]) # limit to 20 rows
-# grid.arrange(tbl,
-#              nrow=1,
-#              as.table=TRUE)
+top_refugee_nationalities = ref_nationalities %>% top_n( topN ) %>% select(Nationality)
+
+.countries = top_refugee_presentcountries[, "Country of Origin"]
+.nationalities = top_refugee_nationalities[, "Nationality"]
+
+
+# kable(refs[1:20, ] %>% mutate(Arrivals = comma(Arrivals)), align = 'r' )
+
+tbl <- tableGrob(refs[1:20, ]) # limit to 20 rows
+grid.arrange(tbl)
 
 ```
 
@@ -720,10 +723,10 @@ alien_type =  "R"
 brewer.palattes = ifelse( alien_type ==  "I", "Oranges" , "Blues" )
 brewer.palatte = ifelse( alien_type ==  "I", "Orange" , "Blue" )
 
-if (!exists('countries')) countries = c('Iraq', 'Thailand')
+if (!exists('countries')) .countries = c('Iraq', 'Thailand')
 
-for (i in 1:length(countries)) {
-  .country = countries[i]
+for (i in 1:length(.countries)) {
+  .country = .countries[i]
   out = c(out, knit_child('AnnualSummary_child.Rmd') )
 }
 
