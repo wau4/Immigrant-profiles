@@ -69,8 +69,10 @@ edn.sql = "SELECT
           ExamSiteCountry as examcountry, 
           ClassB, ClassB1Pulmonary, TBActiveClassB,TBInactiveClassB, ClassB2LTBI,
           ClassB1PulTreatByPanel, TBActiveClassBTreatment, ClassB1PulTreatSmearPos, 
-          ClassB1PulTreatCulturePos, ClassB1PulTreatDSTResult, 
-          Diagnosis 
+          ClassB1PulTreatCulturePos, ClassB1PulTreatDSTResult,
+          Diagnosis ,
+          SyphilisClassB, MentalDisorderClassB, 
+          HansenMultibClassB, HansenPaucibClassB, OtherClassB
      FROM
      Alien 
      inner join 
@@ -89,7 +91,10 @@ options(stringsAsFactors = FALSE)
 # ODBC connection
 edn <- odbcConnect("EDN")
 ednll = sqlQuery(edn, paste(edn.sql, where))
+StateProvince = sqlQuery(edn, "select * from StateProvince")
 close(edn)
+
+save(StateProvince, file = "StateProvince.rda")
 
 # dplyr connection
 # library(DBI)
@@ -188,6 +193,9 @@ countries = regions %>% full_join(fips, by='FIPS') %>% filter(!is.na(CountryName
           WRAPS_nationality = ifelse(is.na(WRAPS_nationality), CountryName, WRAPS_nationality)
           )
 
+# remove duplicate Burma (edn_country_id should be BM)
+countries = countries %>% filter( !(edn_country_id %in% "MM") ) 
+
 save(countries, file = 'countries.rda')
 
 # View(countries)
@@ -285,7 +293,12 @@ ednll= ednll %>%
           )
                          
  ednll= ednll %>%  
-          dplyr::mutate( Domestic_TB_Case = ifelse( Diagnosis == 3 , 1 , 0 ) )   
+          dplyr::mutate( Domestic_TB_Case = ifelse( Diagnosis == 3 , 1 , 0 ) )  
+ 
+ 
+ ednll= ednll %>%  
+          dplyr::mutate( Hansens = max(HansenMultibClassB, HansenPaucibClassB, na.rm = TRUE) )  
+ 
 
 # join WRAPS
 ednll = ednll %>%  
@@ -307,7 +320,8 @@ edn_counts = ednll %>%
                        ClassB1PulTreatSmearPos,ClassB1PulTreatCulturePos,ClassB1PulTreatDSTResult,
                        ClassB, ClassB1Pulmonary, TBActiveClassB,TBInactiveClassB, ClassB2LTBI,
                        abnCXR, ClassBTB, 
-                       Diagnosis,
+                       SyphilisClassB, MentalDisorderClassB, Hansens, OtherClassB,
+                       Diagnosis, 
                        dataSource, 
                        edntbcase, Overseas_TB_Case, Domestic_TB_Case
                        ) %>%
